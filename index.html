@@ -687,6 +687,22 @@ const sbPatch  = (p,b,tok)  => sbFetch('PATCH', `/rest/v1/${p}`,b,tok);
 const sbDelete = (p,tok)    => sbFetch('DELETE',`/rest/v1/${p}`,null,tok);
 const tok      = ()         => sesion?.access_token;
 
+// Upsert con on_conflict — devuelve siempre el objeto, sea INSERT o UPDATE
+async function sbUpsert(table, body, conflictCol, t) {
+  const r = await fetch(`${SB_URL}/rest/v1/${table}`, {
+    method: 'POST',
+    headers: {
+      ...hdrs(t),
+      'Prefer': 'return=representation,resolution=merge-duplicates',
+    },
+    body: JSON.stringify(body)
+  });
+  const txt = await r.text();
+  if(!r.ok) throw new Error(txt);
+  const data = JSON.parse(txt);
+  return Array.isArray(data) ? data[0] : data;
+}
+
 // ══════════════════════════════════════════════════════════
 // AUTH
 // ══════════════════════════════════════════════════════════
@@ -761,19 +777,23 @@ document.addEventListener('DOMContentLoaded', async ()=>{
 async function iniciarApp() {
   document.getElementById('authScreen').style.display='none';
   document.getElementById('appScreen').classList.add('visible');
-  // Cargar perfil
-  try {
-    const arr = await sbGet(`profiles?id=eq.${sesion.user.id}&limit=1`,tok());
-    perfil = arr?.[0] || {role:'user',email:sesion.user?.email};
-    // Actualizar last_seen
-    sbPatch(`profiles?id=eq.${sesion.user.id}`,{last_seen:new Date().toISOString()},tok()).catch(()=>{});
-  } catch{ perfil={role:'user',email:sesion.user?.email}; }
 
-  const email = perfil.email||sesion.user?.email||'';
-  document.getElementById('userEmail').textContent = email;
+  // Cargar perfil via RPC (SECURITY DEFINER — bypasa RLS recursivo)
+  try {
+    const arr = await sbFetch('POST', '/rest/v1/rpc/get_my_profile', {}, tok());
+    perfil = (Array.isArray(arr) ? arr[0] : arr) || { role:'user', email:sesion.user?.email };
+    // Actualizar last_seen en background
+    sbPatch(`profiles?id=eq.${sesion.user.id}`, { last_seen: new Date().toISOString() }, tok()).catch(()=>{});
+  } catch(e) {
+    console.error('perfil error:', e);
+    perfil = { role:'user', email: sesion.user?.email };
+  }
+
+  const email = perfil.email || sesion.user?.email || '';
+  document.getElementById('userEmail').textContent  = email;
   document.getElementById('userInitial').textContent = email.charAt(0).toUpperCase();
-  document.getElementById('userRoleLbl').textContent = perfil.role==='admin'?'Administrador':'Usuario';
-  // Mostrar controles de admin
+  document.getElementById('userRoleLbl').textContent = perfil.role==='admin' ? 'Administrador' : 'Usuario';
+
   if(perfil.role==='admin'){
     document.getElementById('btnDash').style.display='flex';
     document.getElementById('adminSection').style.display='block';
@@ -1209,41 +1229,59 @@ async function importarCSV(evt) {
     const iCn = hdr.indexOf('cantidad');
 
     if(iN<0){ toast('CSV: falta columna "nombre"'); return; }
-
     toast('Importando...');
 
     // 1. Recargar categorías frescas
     try{ categorias = await sbGet('categorias?order=orden.asc', tok()); }
     catch(err){ console.error('Error recargando categorías:', err); }
 
-    // 2. Mapa nombre (minúsc) → id
+    // 2. Mapa nombre→id (normalizado: sin espacios extra, minúsculas)
+    const normalize = s => s.trim().toLowerCase();
     const catMap = {};
-    categorias.forEach(c=>{ catMap[c.nombre.trim().toLowerCase()] = c.id; });
+    categorias.forEach(c => { catMap[normalize(c.nombre)] = c.id; });
 
-    // 3. Nombres de categorías nuevas del CSV
-    const nuevasCats = new Set();
+    // 3. Recoger nombres únicos de categorías del CSV
+    const catNombres = new Set();
     for(let i=1; i<lines.length; i++){
       const cols = parseCsvLine(lines[i]);
       if(!(cols[iN]||'').trim()) continue;
       const cn = iCt>=0 ? (cols[iCt]||'').trim() : '';
-      if(cn && !catMap[cn.toLowerCase()]) nuevasCats.add(cn);
+      if(cn) catNombres.add(cn);
     }
 
-    // 4. Crear categorías nuevas una por una
-    for(const cn of nuevasCats){
+    // 4. Upsert cada categoría — merge-duplicates garantiza que siempre devuelve el objeto con id
+    for(const cn of catNombres){
+      const key = normalize(cn);
+      if(catMap[key]) continue; // ya existe, no hace falta
       try{
-        const res = await sbPost('categorias', {
-          nombre: cn, icono:'📦', color:'#1e3a5f',
-          orden: categorias.length, user_id: sesion.user.id
-        }, tok());
-        const cat = Array.isArray(res) ? res[0] : res;
+        const cat = await sbUpsert('categorias', {
+          nombre:  cn,
+          icono:   '📦',
+          color:   '#1e3a5f',
+          orden:   categorias.length,
+          user_id: sesion.user.id
+        }, 'user_id,nombre', tok());
+
         if(cat?.id){
           categorias.push(cat);
-          catMap[cn.toLowerCase()] = cat.id;
+          catMap[key] = cat.id;
+          console.log('✓ Categoría:', cn, cat.id);
         } else {
-          console.error('Categoría creada sin id:', cn, res);
+          // Fallback: buscar en BD por si ya existía
+          const found = await sbGet(`categorias?nombre=eq.${encodeURIComponent(cn)}&limit=1`, tok());
+          if(found?.[0]?.id){
+            catMap[key] = found[0].id;
+            if(!categorias.find(c=>c.id===found[0].id)) categorias.push(found[0]);
+          }
         }
-      } catch(err){ console.error('Error cat "'+cn+'":', err); }
+      } catch(err){
+        console.error('Error cat "'+cn+'":', err);
+        // Intentar recuperar si ya existía
+        try{
+          const found = await sbGet(`categorias?nombre=eq.${encodeURIComponent(cn)}&limit=1`, tok());
+          if(found?.[0]?.id){ catMap[key]=found[0].id; }
+        } catch{}
+      }
     }
 
     // 5. Insertar productos
@@ -1252,16 +1290,19 @@ async function importarCSV(evt) {
       const cols   = parseCsvLine(lines[i]);
       const nombre = (cols[iN]||'').trim(); if(!nombre) continue;
       const cn     = iCt>=0 ? (cols[iCt]||'').trim() : '';
-      const catId  = cn ? (catMap[cn.toLowerCase()]||null) : null;
+      const catId  = cn ? (catMap[normalize(cn)] || null) : null;
+
+      if(cn && !catId) console.warn('Categoría no resuelta para producto:', nombre, '→', cn);
+
       try{
         const res = await sbPost('productos', {
           nombre,
-          unidad:       iU>=0  ? (cols[iU]||'').trim()    : '',
-          paso:         iP>=0  ? (parseFloat(cols[iP])||1) : 1,
+          unidad:       iU>=0  ? (cols[iU]||'').trim()             : '',
+          paso:         iP>=0  ? (parseFloat(cols[iP])||1)          : 1,
           categoria_id: catId,
-          notas:        iNo>=0 ? (cols[iNo]||'').trim()   : '',
+          notas:        iNo>=0 ? (cols[iNo]||'').trim()             : '',
           marcado:      iF>=0  ? (cols[iF]||'').trim().toLowerCase()==='si' : false,
-          cantidad_num: iCn>=0 ? (parseFloat(cols[iCn])||0) : 0,
+          cantidad_num: iCn>=0 ? (parseFloat(cols[iCn])||0)         : 0,
           orden:        productos.length,
           user_id:      sesion.user.id
         }, tok());
@@ -1272,7 +1313,7 @@ async function importarCSV(evt) {
     }
 
     poblarTabs(); poblarSelectCat(); renderLista();
-    toast(errors ? `✓ ${added} importados, ${errors} fallidos` : `✓ ${added} productos importados`);
+    toast(errors>0 ? `✓ ${added} importados, ${errors} fallidos` : `✓ ${added} productos importados`);
   };
   reader.readAsText(file,'UTF-8'); evt.target.value='';
 }
