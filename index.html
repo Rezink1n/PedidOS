@@ -77,8 +77,8 @@
    RESET & BASE
 ═══════════════════════════════════════ */
 *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
-html { font-size:15px; }
-body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); min-height:100dvh; display:flex; flex-direction:column; overflow-x:hidden; line-height:1.5; }
+html { font-size:15px; overscroll-behavior:none; }
+body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); min-height:100dvh; display:flex; flex-direction:column; overflow-x:hidden; line-height:1.5; overscroll-behavior:none; position:fixed; width:100%; height:100%; overflow-y:auto; }
 code { font-family:monospace; background:var(--gray-100); padding:1px 5px; border-radius:4px; font-size:12px; color:var(--navy-700); }
 strong { font-weight:600; }
 
@@ -114,9 +114,9 @@ strong { font-weight:600; }
 .auth-tab.active { background:rgba(255,255,255,.12); color:#fff; }
 
 .auth-card label { display:block; font-size:11px; font-weight:600; color:rgba(255,255,255,.45); text-transform:uppercase; letter-spacing:.8px; margin-bottom:5px; }
-.auth-card input  { width:100%; background:rgba(0,0,0,.2); border:1px solid rgba(255,255,255,.12); border-radius:var(--radius-sm); padding:11px 13px; color:#fff; font-size:14px; outline:none; margin-bottom:12px; font-family:'Inter',sans-serif; transition:border-color .15s; }
-.auth-card input::placeholder { color:rgba(255,255,255,.25); }
-.auth-card input:focus { border-color:rgba(255,255,255,.35); }
+.auth-card input  { width:100%; background:rgba(0,0,0,.2); border:1px solid rgba(255,255,255,.12); border-radius:var(--radius-sm); padding:11px 13px; color:#fff !important; font-size:14px; outline:none; margin-bottom:12px; font-family:'Inter',sans-serif; transition:border-color .15s; -webkit-text-fill-color:#fff; }
+.auth-card input::placeholder { color:rgba(255,255,255,.35); opacity:1; }
+.auth-card input:focus { border-color:rgba(255,255,255,.45); background:rgba(0,0,0,.3); }
 
 .btn-auth { width:100%; padding:12px; background:#2563eb; border:none; border-radius:var(--radius-sm); color:#fff; font-family:'Space Grotesk',sans-serif; font-size:14px; font-weight:700; cursor:pointer; margin-top:4px; transition:all .15s; letter-spacing:.2px; }
 .btn-auth:active { transform:scale(.97); background:#1d4ed8; }
@@ -235,6 +235,53 @@ main { flex:1; padding:10px 14px 100px; overflow-y:auto; }
 .prod-btn.edit { color:var(--navy-600); }
 .prod-btn.move { font-size:13px; font-weight:700; }
 .prod-btn.disabled { opacity:.2; cursor:default; pointer-events:none; }
+
+/* ── counter popup ── */
+.prod-prefix { font-family:'Space Grotesk',sans-serif; font-weight:700; color:var(--accent); margin-right:4px; font-size:14px; }
+.prod-tap-hint { font-size:10px; color:var(--text4); margin-left:3px; }
+
+#cntPopup {
+  position:fixed; z-index:400;
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:16px;
+  box-shadow:0 8px 32px rgba(10,18,30,.18), 0 2px 8px rgba(10,18,30,.1);
+  padding:16px 14px 14px;
+  min-width:220px;
+  animation:popIn .15s ease;
+  touch-action:none;
+}
+@keyframes popIn { from{opacity:0;transform:scale(.92)} to{opacity:1;transform:scale(1)} }
+
+.cnt-popup-name {
+  font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:700;
+  color:var(--text); margin-bottom:12px; text-align:center;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:190px;
+}
+.cnt-popup-row {
+  display:flex; align-items:center; justify-content:center; gap:10px;
+}
+.cnt-popup-btn {
+  width:44px; height:44px; border-radius:12px; border:none;
+  font-size:22px; font-weight:700; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  transition:all .12s; user-select:none; line-height:1;
+}
+.cnt-popup-btn.plus  { background:var(--accent); color:#fff; box-shadow:0 3px 10px rgba(37,99,235,.35); }
+.cnt-popup-btn.plus:active  { transform:scale(.88); }
+.cnt-popup-btn.minus { background:var(--red-bg); color:var(--red); border:1px solid #fecaca; }
+.cnt-popup-btn.minus:active { transform:scale(.88); }
+.cnt-popup-val {
+  min-width:72px; text-align:center;
+  font-family:'Space Grotesk',sans-serif; font-size:22px; font-weight:700;
+  color:var(--navy-800); line-height:1;
+}
+.cnt-popup-unit { font-size:11px; color:var(--text3); text-align:center; margin-top:6px; }
+.cnt-popup-close {
+  position:absolute; top:8px; right:10px;
+  background:none; border:none; cursor:pointer;
+  font-size:16px; color:var(--text4); line-height:1; padding:2px;
+}
 
 /* ── empty ── */
 .empty-state { text-align:center; padding:48px 20px; }
@@ -421,10 +468,10 @@ hr { border:none; border-top:1px solid var(--border); margin:12px 0; }
     <div class="modal-handle"></div>
     <h2 id="mpTitulo">Agregar Producto</h2>
     <input type="hidden" id="mpId"/>
-    <div class="form-group"><label>Nombre *</label><input type="text" id="mpNombre" placeholder="Ej: Leche entera" autocomplete="off"/></div>
+    <div class="form-group"><label>Nombre *</label><input type="text" id="mpNombre" placeholder="Ej: Botella de leche" autocomplete="off"/></div>
     <div class="form-row">
-      <div class="form-group"><label>Cantidad</label><input type="text" id="mpCantidad" placeholder="Ej: 2"/></div>
-      <div class="form-group"><label>Unidad</label><input type="text" id="mpUnidad" placeholder="Ej: L, kg"/></div>
+      <div class="form-group"><label>Unidad</label><input type="text" id="mpUnidad" placeholder="Ej: uds, g, kg, L"/></div>
+      <div class="form-group"><label>Paso por clic <span style="font-size:10px;text-transform:none;font-weight:400">(cuánto suma +)</span></label><input type="number" id="mpPaso" placeholder="1" min="0.1" step="any"/></div>
     </div>
     <div class="form-group"><label>Categoría</label><select id="mpCat"><option value="">Sin categoría</option></select></div>
     <div class="form-group"><label>Notas</label><input type="text" id="mpNotas" placeholder="Marca, urgente..."/></div>
@@ -483,6 +530,7 @@ hr { border:none; border-top:1px solid var(--border); margin:12px 0; }
     <button class="btn-danger" onclick="eliminarMarcados()">Eliminar los que faltan</button>
 
     <button class="btn-secondary" onclick="cerrar('modalOpciones')" style="margin-top:14px">Cerrar</button>
+    <div style="text-align:center;margin-top:16px;font-size:11px;color:var(--text4);letter-spacing:.3px;">PedidOS v1.2.01</div>
   </div>
 </div>
 
@@ -541,6 +589,18 @@ hr { border:none; border-top:1px solid var(--border); margin:12px 0; }
     </div>
     <button class="btn-secondary" onclick="cerrar('modalDash')" style="margin-top:14px">Cerrar</button>
   </div>
+</div>
+
+<!-- ══ Counter Popup ══ -->
+<div id="cntPopup" style="display:none">
+  <button class="cnt-popup-close" onclick="cerrarPopup()">✕</button>
+  <div class="cnt-popup-name" id="cntPopupName"></div>
+  <div class="cnt-popup-row">
+    <button class="cnt-popup-btn minus" onclick="popupCambiar(-1)">−</button>
+    <div class="cnt-popup-val" id="cntPopupVal">0</div>
+    <button class="cnt-popup-btn plus"  onclick="popupCambiar(+1)">+</button>
+  </div>
+  <div class="cnt-popup-unit" id="cntPopupUnit"></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -739,15 +799,32 @@ function renderLista() {
 }
 
 function renderProd(p,idx,total) {
-  const qty  =p.cantidad?`<span class="prod-qty">${p.cantidad}${p.unidad?' '+p.unidad:''}</span>`:'';
-  const notas=p.notas?`<span class="prod-notes">· ${p.notas}</span>`:'';
-  const up   =idx>0?`<button class="prod-btn move" onclick="mover('${p.id}','up')">↑</button>`:`<button class="prod-btn move disabled" disabled>↑</button>`;
-  const dn   =idx<total-1?`<button class="prod-btn move" onclick="mover('${p.id}','down')">↓</button>`:`<button class="prod-btn move disabled" disabled>↓</button>`;
+  const num   = Number(p.cantidad_num)||0;
+  const paso  = Number(p.paso)||1;
+  const unidad= p.unidad||'';
+  const notas = p.notas?`<span class="prod-notes">· ${p.notas}</span>`:'';
+  const up    = idx>0?`<button class="prod-btn move" onclick="mover('${p.id}','up')">↑</button>`:`<button class="prod-btn move disabled" disabled>↑</button>`;
+  const dn    = idx<total-1?`<button class="prod-btn move" onclick="mover('${p.id}','down')">↓</button>`:`<button class="prod-btn move disabled" disabled>↓</button>`;
+
+  // Formato cantidad: siempre "NÚM× Nombre" o "NÚMg Nombre"
+  let prefijo = '';
+  if(num > 0) {
+    const fmt = Number.isInteger(num) ? num : num.toFixed(2).replace(/\.?0+$/,'');
+    prefijo = paso === 1
+      ? `<span class="prod-prefix">${fmt}×</span>`
+      : `<span class="prod-prefix">${fmt}${unidad?' '+unidad:''}</span>`;
+  }
+
+  // Indicador visual de que es tappable
+  const tapHint = num > 0
+    ? `<span class="prod-tap-hint" style="color:var(--accent);font-size:10px">✎</span>`
+    : `<span class="prod-tap-hint">+</span>`;
+
   return `<div class="product-item ${p.marcado?'falta':''}">
     <button class="check-btn" onclick="toggleMarcado('${p.id}')"><div class="check-btn-inner"></div></button>
-    <div class="prod-info">
-      <div class="prod-name">${esc(p.nombre)}</div>
-      <div class="prod-meta">${qty}${notas}</div>
+    <div class="prod-info" onclick="abrirPopup('${p.id}',event)" style="cursor:pointer">
+      <div class="prod-name">${prefijo}${esc(p.nombre)} ${tapHint}</div>
+      <div class="prod-meta">${notas}</div>
     </div>
     <div class="prod-actions">${up}${dn}
       <button class="prod-btn edit" onclick="editarProd('${p.id}')">✏</button>
@@ -769,6 +846,75 @@ async function toggleMarcado(id) {
   try{await sbPatch(`productos?id=eq.${id}`,{marcado:p.marcado},tok());}
   catch{p.marcado=!p.marcado;renderLista();toast('Error al guardar');}
 }
+
+// ── COUNTER POPUP ──
+let _popupId = null;
+const _cntTimers = {};
+
+function abrirPopup(id, evt) {
+  evt.stopPropagation();
+  const p = productos.find(x=>x.id===id); if(!p) return;
+  _popupId = id;
+
+  const num  = Number(p.cantidad_num)||0;
+  const paso = Number(p.paso)||1;
+  const uni  = p.unidad||'';
+
+  // Actualizar contenido
+  document.getElementById('cntPopupName').textContent = p.nombre;
+  actualizarPopupVal(num, paso, uni);
+
+  // Posicionar cerca del toque pero dentro de pantalla
+  const popup = document.getElementById('cntPopup');
+  popup.style.display = 'block';
+  const rect = popup.getBoundingClientRect();
+  const sw = window.innerWidth, sh = window.innerHeight;
+  let top = (evt.clientY||200) - 20;
+  let left = (evt.clientX||sw/2) - rect.width/2;
+  top  = Math.max(8, Math.min(top,  sh - rect.height - 8));
+  left = Math.max(8, Math.min(left, sw - rect.width  - 8));
+  popup.style.top  = top  + 'px';
+  popup.style.left = left + 'px';
+}
+
+function actualizarPopupVal(num, paso, uni) {
+  const fmt = num===0 ? '0' : (Number.isInteger(num) ? num : num.toFixed(2).replace(/\.?0+$/,''));
+  document.getElementById('cntPopupVal').textContent = fmt;
+  const unitLbl = paso===1
+    ? (uni ? `unidad: ${uni}` : 'unidades')
+    : `paso: ${paso}${uni?' '+uni:''}`;
+  document.getElementById('cntPopupUnit').textContent = unitLbl;
+}
+
+function cerrarPopup() {
+  document.getElementById('cntPopup').style.display='none';
+  _popupId = null;
+}
+
+async function popupCambiar(dir) {
+  const p = productos.find(x=>x.id===_popupId); if(!p) return;
+  const paso = Number(p.paso)||1;
+  let nuevo  = Math.max(0, (Number(p.cantidad_num)||0) + dir*paso);
+  nuevo = Math.round(nuevo*1000)/1000;
+  p.cantidad_num = nuevo;
+  if(nuevo>0 && !p.marcado) p.marcado = true;
+  if(nuevo===0 && p.marcado) p.marcado = false;
+
+  actualizarPopupVal(nuevo, paso, p.unidad||'');
+  renderLista();
+
+  clearTimeout(_cntTimers[_popupId]);
+  _cntTimers[_popupId] = setTimeout(async()=>{
+    try{ await sbPatch(`productos?id=eq.${p.id}`,{cantidad_num:nuevo,marcado:p.marcado},tok()); }
+    catch{ toast('Error al guardar'); }
+  }, 600);
+}
+
+// Cerrar popup al tocar fuera
+document.addEventListener('click', e=>{
+  const popup = document.getElementById('cntPopup');
+  if(popup.style.display!=='none' && !popup.contains(e.target)) cerrarPopup();
+});
 async function eliminarProd(id) {
   if(!confirm('¿Eliminar este producto?'))return;
   const idx=productos.findIndex(x=>x.id===id),bak=productos[idx];
@@ -781,8 +927,8 @@ function editarProd(id) {
   document.getElementById('mpId').value=p.id;
   document.getElementById('mpTitulo').textContent='Editar Producto';
   document.getElementById('mpNombre').value=p.nombre;
-  document.getElementById('mpCantidad').value=p.cantidad||'';
   document.getElementById('mpUnidad').value=p.unidad||'';
+  document.getElementById('mpPaso').value=p.paso??1;
   document.getElementById('mpCat').value=p.categoria_id||'';
   document.getElementById('mpNotas').value=p.notas||'';
   abrir('modalProducto');setTimeout(()=>document.getElementById('mpNombre').focus(),300);
@@ -790,15 +936,26 @@ function editarProd(id) {
 function abrirModalProducto() {
   document.getElementById('mpId').value='';
   document.getElementById('mpTitulo').textContent='Agregar Producto';
-  ['mpNombre','mpCantidad','mpUnidad','mpNotas'].forEach(i=>document.getElementById(i).value='');
-  document.getElementById('mpCat').value='';
+  ['mpNombre','mpUnidad','mpNotas'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('mpPaso').value='1';
+  // Pre-seleccionar categoría activa si el filtro es una categoría
+  const catId = filtroActual.startsWith('cat_') ? filtroActual.slice(4) : '';
+  document.getElementById('mpCat').value = catId;
   abrir('modalProducto');setTimeout(()=>document.getElementById('mpNombre').focus(),300);
 }
 async function guardarProducto() {
   const nombre=document.getElementById('mpNombre').value.trim();
   if(!nombre){toast('Escribe el nombre');return;}
   const id=document.getElementById('mpId').value;
-  const data={nombre,cantidad:document.getElementById('mpCantidad').value.trim(),unidad:document.getElementById('mpUnidad').value.trim(),categoria_id:document.getElementById('mpCat').value||null,notas:document.getElementById('mpNotas').value.trim(),updated_at:new Date().toISOString()};
+  const paso=parseFloat(document.getElementById('mpPaso').value)||1;
+  const data={
+    nombre,
+    unidad:document.getElementById('mpUnidad').value.trim(),
+    paso,
+    categoria_id:document.getElementById('mpCat').value||null,
+    notas:document.getElementById('mpNotas').value.trim(),
+    updated_at:new Date().toISOString()
+  };
   cerrar('modalProducto');
   try {
     if(id){
@@ -806,8 +963,9 @@ async function guardarProducto() {
       const i=productos.findIndex(x=>x.id===id);if(i>=0)productos[i]={...productos[i],...data};
       toast('Actualizado');
     }else{
-      const res=await sbPost('productos',{...data,marcado:false,orden:productos.length,user_id:sesion.user.id},tok());
+      const res=await sbPost('productos',{...data,marcado:false,cantidad_num:0,orden:productos.length,user_id:sesion.user.id},tok());
       productos.unshift(Array.isArray(res)?res[0]:res);toast('Producto agregado');
+
     }
     renderLista();
   }catch(e){toast('Error al guardar');await cargarDatos();}
@@ -927,7 +1085,17 @@ function generarTexto(){
   const g={};
   falta.forEach(p=>{const c=categorias.find(x=>x.id===p.categoria_id);const k=c?c.nombre:'Sin categoría',ic=c?c.icono:'📦';if(!g[k])g[k]={i:ic,items:[]};g[k].items.push(p);});
   let catsTxt='';
-  Object.entries(g).forEach(([k,v])=>{catsTxt+=`\n${v.i} *${k}*\n`;v.items.forEach(p=>{catsTxt+=`• ${p.nombre}${p.cantidad?` — ${p.cantidad}${p.unidad?' '+p.unidad:''}`:''} ${p.notas?`_(${p.notas})_`:''}\n`;});});
+  Object.entries(g).forEach(([k,v])=>{catsTxt+=`\n${v.i} *${k}*\n`;v.items.forEach(p=>{
+    const num=Number(p.cantidad_num)||0;
+    const paso=Number(p.paso)||1;
+    const uni=p.unidad||'';
+    let cantStr='';
+    if(num>0){
+      const fmt=Number.isInteger(num)?num:num.toFixed(2).replace(/\.?0+$/,'');
+      cantStr = paso===1 ? ` — ${fmt}×` : ` — ${fmt}${uni?' '+uni:''}`;
+    }
+    catsTxt+=`• ${p.nombre}${cantStr}${p.notas?` _(${p.notas})_`:''}\n`;
+  });});
   return (cfg.plantilla||PLANTILLA_DEFAULT).replace('{titulo}',cfg.titulo||'PedidOS Cafetería').replace('{fecha}',hoy).replace('{total}',falta.length).replace('{categorias}',catsTxt.trim());
 }
 function abrirCompartir(){document.getElementById('sharePreview').textContent=generarTexto();abrir('modalCompartir');}
@@ -961,34 +1129,67 @@ async function importarCSV(evt) {
     const hdr=lines[0].split(',').map(h=>h.trim().toLowerCase().replace(/"/g,''));
     const iN=hdr.indexOf('nombre'),iCa=hdr.indexOf('cantidad'),iU=hdr.indexOf('unidad'),iCt=hdr.indexOf('categoria'),iNo=hdr.indexOf('notas'),iF=hdr.indexOf('falta');
     if(iN<0){toast('Falta columna "nombre"');return;}
+
+    toast('Importando...');
+
+    // 1. Recargar categorías frescas desde BD para evitar desfase
+    try { categorias = await sbGet('categorias?order=orden.asc', tok()); } catch{}
+
+    // 2. Construir mapa nombre→id de categorías ya existentes
+    const catMap = {};
+    categorias.forEach(c => { catMap[c.nombre.toLowerCase()] = c.id; });
+
+    // 3. Recopilar todos los nombres de categoría únicos del CSV
+    const catNombresNuevos = new Set();
+    for(let i=1;i<lines.length;i++){
+      const cols=parseCsvLine(lines[i]);
+      const nombre=(cols[iN]||'').trim(); if(!nombre) continue;
+      const catNombre=iCt>=0?(cols[iCt]||'').trim():'';
+      if(catNombre && !catMap[catNombre.toLowerCase()]) catNombresNuevos.add(catNombre);
+    }
+
+    // 4. Crear categorías nuevas UNA sola vez cada una
+    for(const catNombre of catNombresNuevos){
+      try{
+        const res = await sbPost('categorias', {
+          nombre: catNombre, icono:'📦', color:'#1e3a5f',
+          orden: categorias.length, user_id: sesion.user.id
+        }, tok());
+        const cat = Array.isArray(res) ? res[0] : res;
+        if(cat && cat.id){
+          categorias.push(cat);
+          catMap[catNombre.toLowerCase()] = cat.id;
+        }
+      } catch(err){ console.error('Error creando categoría:', catNombre, err); }
+    }
+
+    // 5. Importar productos usando el mapa ya completo
     let added=0;
     for(let i=1;i<lines.length;i++){
       const cols=parseCsvLine(lines[i]);
-      const nombre=(cols[iN]||'').trim();if(!nombre)continue;
-      // Buscar/crear categoría
+      const nombre=(cols[iN]||'').trim(); if(!nombre) continue;
       const catNombre=iCt>=0?(cols[iCt]||'').trim():'';
-      let catId=null;
-      if(catNombre){
-        let cat=categorias.find(c=>c.nombre.toLowerCase()===catNombre.toLowerCase());
-        if(!cat){
-          // FIXED: crear con user_id correcto
-          try{
-            const res=await sbPost('categorias',{nombre:catNombre,icono:'📦',color:'#1e3a5f',orden:categorias.length,user_id:sesion.user.id},tok());
-            cat=Array.isArray(res)?res[0]:res;
-            if(cat&&cat.id)categorias.push(cat);
-          }catch(err){console.error('Cat error:',err);}
-        }
-        catId=cat?.id||null;
-      }
+      const catId = catNombre ? (catMap[catNombre.toLowerCase()]||null) : null;
       const marcado=iF>=0?(cols[iF]||'').trim().toLowerCase()==='si':false;
       try{
-        const res=await sbPost('productos',{nombre,cantidad:iCa>=0?(cols[iCa]||'').trim():'',unidad:iU>=0?(cols[iU]||'').trim():'',categoria_id:catId,notas:iNo>=0?(cols[iNo]||'').trim():'',marcado,orden:productos.length,user_id:sesion.user.id},tok());
-        productos.unshift(Array.isArray(res)?res[0]:res);added++;
-      }catch(err){console.error('Prod error:',err);}
+        const res=await sbPost('productos',{
+          nombre,
+          cantidad: iCa>=0?(cols[iCa]||'').trim():'',
+          unidad:   iU>=0?(cols[iU]||'').trim():'',
+          categoria_id: catId,
+          notas:    iNo>=0?(cols[iNo]||'').trim():'',
+          marcado,  orden: productos.length,
+          user_id:  sesion.user.id
+        }, tok());
+        productos.unshift(Array.isArray(res)?res[0]:res);
+        added++;
+      }catch(err){ console.error('Error creando producto:', nombre, err); }
     }
-    poblarTabs();poblarSelectCat();renderLista();toast(`${added} productos importados`);
+
+    poblarTabs(); poblarSelectCat(); renderLista();
+    toast(`✓ ${added} productos importados`);
   };
-  reader.readAsText(file,'UTF-8');evt.target.value='';
+  reader.readAsText(file,'UTF-8'); evt.target.value='';
 }
 
 function parseCsvLine(line){
@@ -1007,9 +1208,10 @@ function parseCsvLine(line){
 // ══════════════════════════════════════════════════════════
 const abrirOpciones=()=>abrir('modalOpciones');
 async function desmarcarTodos(){
-  if(!confirm('¿Desmarcar todos?'))return;
-  cerrar('modalOpciones');productos.forEach(p=>p.marcado=false);renderLista();
-  try{await sbPatch(`productos?user_id=eq.${sesion.user.id}`,{marcado:false},tok());toast('Lista limpiada');}
+  if(!confirm('¿Limpiar la lista? Se desmarcan todos y se resetean las cantidades.'))return;
+  cerrar('modalOpciones');
+  productos.forEach(p=>{p.marcado=false;p.cantidad_num=0;});renderLista();
+  try{await sbPatch(`productos?user_id=eq.${sesion.user.id}`,{marcado:false,cantidad_num:0},tok());toast('Lista limpiada');}
   catch{await cargarDatos();}
 }
 async function eliminarMarcados(){
