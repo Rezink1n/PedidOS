@@ -1,7 +1,7 @@
 {
-  "name": "Lista Cafetería",
-  "short_name": "Lista Café",
-  "description": "Lista de compras para cafetería — agrega, organiza y comparte",
+  "name": "PedidOS",
+  "short_name": "PedidOS",
+  "description": "Gestión de pedidos para cafetería — agrega, organiza y comparte",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0f0700",
