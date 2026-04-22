@@ -192,20 +192,20 @@
       to   { opacity: 1; transform: translateY(0); }
     }
 
-    .product-item.marcado {
-      background: var(--bg3); border-color: var(--border); box-shadow: none;
+    .product-item.falta {
+      background: #fff7ed;
+      border-color: #fed7aa;
     }
 
-    .product-item.marcado .prod-name { text-decoration: line-through; color: var(--text3); }
+    .product-item.falta .prod-name { color: var(--orange2); font-weight: 600; }
 
     .check-btn {
-      width: 24px; height: 24px; border-radius: 50%;
+      width: 26px; height: 26px; border-radius: 50%;
       border: 2px solid var(--border2); background: transparent;
       cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0; transition: all 0.15s; font-size: 12px; color: transparent;
+      flex-shrink: 0; transition: all 0.15s; font-size: 16px;
     }
-    .product-item.marcado .check-btn { background: var(--green); border-color: var(--green); color: white; }
     .check-btn:active { transform: scale(0.85); }
 
     .prod-info { flex: 1; min-width: 0; }
@@ -234,6 +234,8 @@
     .prod-btn:active { transform: scale(0.85); }
     .prod-btn.del  { color: var(--red); }
     .prod-btn.edit { color: var(--orange2); }
+    .prod-btn.move { color: var(--text2); font-size: 15px; font-weight: 700; }
+    .prod-btn.disabled { opacity: 0.2; cursor: default; }
 
     /* Empty */
     .empty-state { text-align: center; padding: 60px 20px; }
@@ -437,18 +439,17 @@
       </div>
       <div class="stat-chip">
         <div class="num" id="statPendiente">0</div>
-        <div class="lbl">Pendientes</div>
+        <div class="lbl">Faltan ✅</div>
       </div>
       <div class="stat-chip">
         <div class="num" id="statListo">0</div>
-        <div class="lbl">Listos ✓</div>
+        <div class="lbl">Tenemos</div>
       </div>
     </div>
 
     <div class="filter-tabs" id="filterTabs">
       <button class="tab active" data-filter="todos" onclick="setFiltro('todos', this)">Todos</button>
-      <button class="tab" data-filter="pendientes" onclick="setFiltro('pendientes', this)">Pendientes</button>
-      <button class="tab" data-filter="marcados" onclick="setFiltro('marcados', this)">Marcados</button>
+      <button class="tab" data-filter="faltan" onclick="setFiltro('faltan', this)">✅ Faltan</button>
     </div>
   </header>
 
@@ -513,7 +514,7 @@
       <div class="modal-handle"></div>
       <h2>⚙️ Opciones</h2>
       <p style="font-size:13px;color:var(--text3);margin-bottom:16px;">Gestiona tu lista del día.</p>
-      <button class="btn-secondary" onclick="desmarcarTodos()">↩ Desmarcar todos los productos</button>
+      <button class="btn-secondary" onclick="desmarcarTodos()">↩ Limpiar lista (desmarcar todo)</button>
       <button class="delete-all-btn" onclick="eliminarMarcados()">🗑 Eliminar solo los marcados</button>
       <button class="btn-secondary" onclick="cerrarModal('modalConfig')" style="margin-top:14px">Cerrar</button>
     </div>
@@ -598,13 +599,12 @@
     function renderLista() {
       const main = document.getElementById('mainContent');
       let pf = [...productos];
-      if (filtroActual === 'pendientes')        pf = pf.filter(p => !p.marcado);
-      else if (filtroActual === 'marcados')     pf = pf.filter(p =>  p.marcado);
+      if (filtroActual === 'faltan')             pf = pf.filter(p =>  p.marcado);
       else if (filtroActual.startsWith('cat_')) pf = pf.filter(p => p.categoria_id === filtroActual.slice(4));
 
       document.getElementById('statTotal').textContent     = productos.length;
-      document.getElementById('statPendiente').textContent = productos.filter(p => !p.marcado).length;
-      document.getElementById('statListo').textContent     = productos.filter(p =>  p.marcado).length;
+      document.getElementById('statPendiente').textContent = productos.filter(p => p.marcado).length;
+      document.getElementById('statListo').textContent     = productos.filter(p => !p.marcado).length;
 
       if (!pf.length) {
         main.innerHTML = `<div class="empty-state">
@@ -628,24 +628,31 @@
           <div class="category-header" onclick="toggleCategoria('${catId}')">
             <div class="cat-icon">${g.cat.icono}</div>
             <span class="cat-name">${g.cat.nombre}</span>
-            <span class="cat-count">${g.items.filter(p=>!p.marcado).length}/${g.items.length}</span>
+            <span class="cat-count">${g.items.filter(p=>p.marcado).length} faltan</span>
             <span class="cat-toggle ${col ? 'collapsed' : ''}">▼</span>
           </div>
-          ${col ? '' : g.items.map(renderProducto).join('')}
+          ${col ? '' : g.items.map((p, idx) => renderProducto(p, idx, g.items.length)).join('')}
         </div>`;
       }).join('');
     }
 
-    function renderProducto(p) {
+    function renderProducto(p, idx, total) {
       const qty   = p.cantidad ? `<span class="prod-qty">${p.cantidad}${p.unidad ? ' ' + p.unidad : ''}</span>` : '';
       const notas = p.notas   ? `<span class="prod-notes">· ${p.notas}</span>` : '';
-      return `<div class="product-item ${p.marcado ? 'marcado' : ''}">
-        <button class="check-btn" onclick="toggleMarcado('${p.id}')">${p.marcado ? '✓' : ''}</button>
+      const upBtn   = idx > 0
+        ? `<button class="prod-btn move" onclick="moverProducto('${p.id}','up')" title="Subir">↑</button>`
+        : `<button class="prod-btn move disabled" disabled>↑</button>`;
+      const downBtn = idx < total - 1
+        ? `<button class="prod-btn move" onclick="moverProducto('${p.id}','down')" title="Bajar">↓</button>`
+        : `<button class="prod-btn move disabled" disabled>↓</button>`;
+      return `<div class="product-item ${p.marcado ? 'falta' : ''}">
+        <button class="check-btn ${p.marcado ? 'activo' : ''}" onclick="toggleMarcado('${p.id}')">${p.marcado ? '✅' : ''}</button>
         <div class="prod-info">
           <div class="prod-name">${esc(p.nombre)}</div>
           <div class="prod-meta">${qty}${notas}</div>
         </div>
         <div class="prod-actions">
+          ${upBtn}${downBtn}
           <button class="prod-btn edit" onclick="editarProducto('${p.id}')">✏️</button>
           <button class="prod-btn del"  onclick="eliminarProducto('${p.id}')">🗑</button>
         </div>
@@ -657,6 +664,38 @@
     function toggleCategoria(id) {
       categoriasColapsadas.has(id) ? categoriasColapsadas.delete(id) : categoriasColapsadas.add(id);
       renderLista();
+    }
+
+    async function moverProducto(id, direccion) {
+      const p = productos.find(x => x.id === id);
+      if (!p) return;
+      // Obtener compañeros de la misma categoría, en el orden actual
+      const hermanos = productos.filter(x => x.categoria_id === p.categoria_id);
+      const idx = hermanos.findIndex(x => x.id === id);
+      const swapIdx = direccion === 'up' ? idx - 1 : idx + 1;
+      if (swapIdx < 0 || swapIdx >= hermanos.length) return;
+
+      const otro = hermanos[swapIdx];
+      // Intercambiar campo orden
+      const tempOrden = p.orden ?? idx;
+      const otroOrden = otro.orden ?? swapIdx;
+      p.orden    = otroOrden;
+      otro.orden = tempOrden;
+
+      // Reordenar array global según nuevo orden
+      productos.sort((a, b) => {
+        if (a.categoria_id !== b.categoria_id) return 0;
+        return (a.orden ?? 0) - (b.orden ?? 0);
+      });
+      renderLista();
+
+      // Persistir en Supabase
+      try {
+        await Promise.all([
+          sbPatch('productos', p.id,    { orden: p.orden }),
+          sbPatch('productos', otro.id, { orden: otro.orden })
+        ]);
+      } catch { mostrarToast('Error al reordenar'); await cargarDatos(); }
     }
 
     function setFiltro(f, btn) {
@@ -744,30 +783,23 @@
     function generarTexto() {
       const hoy = new Date().toLocaleDateString('es-ES',
         { weekday:'long', day:'numeric', month:'long', year:'numeric' });
-      let txt = `☕ *Lista Cafetería*\n📅 ${hoy}\n`;
-      const pend = productos.filter(p => !p.marcado);
-      const marc = productos.filter(p =>  p.marcado);
-      if (!pend.length && !marc.length) return '☕ Lista vacía';
-      if (pend.length) {
-        const g = {};
-        pend.forEach(p => {
-          const c = categorias.find(x => x.id === p.categoria_id);
-          const k = c ? c.nombre : 'Sin categoría';
-          if (!g[k]) g[k] = { i: c?.icono || '📦', items: [] };
-          g[k].items.push(p);
+      let txt = `☕ *Lista Cafetería — Lo que falta*\n📅 ${hoy}\n`;
+      const falta = productos.filter(p => p.marcado);
+      if (!falta.length) return `☕ *Lista Cafetería*\n📅 ${hoy}\n\n✅ ¡No has marcado nada que falte!`;
+      const g = {};
+      falta.forEach(p => {
+        const c = categorias.find(x => x.id === p.categoria_id);
+        const k = c ? c.nombre : 'Sin categoría';
+        if (!g[k]) g[k] = { i: c?.icono || '📦', items: [] };
+        g[k].items.push(p);
+      });
+      txt += `\n🛒 *FALTA COMPRAR (${falta.length})*\n`;
+      Object.entries(g).forEach(([k, v]) => {
+        txt += `\n${v.i} *${k}*\n`;
+        v.items.forEach(p => {
+          txt += `• ${p.nombre}${p.cantidad ? ` — ${p.cantidad}${p.unidad ? ' '+p.unidad : ''}` : ''}${p.notas ? ` _(${p.notas})_` : ''}\n`;
         });
-        txt += `\n🛒 *PENDIENTES (${pend.length})*\n`;
-        Object.entries(g).forEach(([k, v]) => {
-          txt += `\n${v.i} *${k}*\n`;
-          v.items.forEach(p => {
-            txt += `• ${p.nombre}${p.cantidad ? ` — ${p.cantidad}${p.unidad ? ' '+p.unidad : ''}` : ''}${p.notas ? ` _(${p.notas})_` : ''}\n`;
-          });
-        });
-      }
-      if (marc.length) {
-        txt += `\n✅ *YA TENEMOS (${marc.length})*\n`;
-        marc.forEach(p => txt += `✓ ${p.nombre}\n`);
-      }
+      });
       return txt + `\n_Generado con Lista Cafetería ☕_`;
     }
 
