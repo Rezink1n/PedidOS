@@ -471,7 +471,7 @@ hr { border:none; border-top:1px solid var(--border); margin:12px 0; }
     <div class="form-group"><label>Nombre *</label><input type="text" id="mpNombre" placeholder="Ej: Botella de leche" autocomplete="off"/></div>
     <div class="form-row">
       <div class="form-group"><label>Unidad</label><input type="text" id="mpUnidad" placeholder="Ej: uds, g, kg, L"/></div>
-      <div class="form-group"><label>Paso por clic <span style="font-size:10px;text-transform:none;font-weight:400">(cuánto suma +)</span></label><input type="number" id="mpPaso" placeholder="1" min="0.1" step="any"/></div>
+      <div class="form-group"><label>Paso <span style="font-size:10px;text-transform:none;font-weight:400;color:var(--text4)">(suma por +)</span></label><input type="number" id="mpPaso" placeholder="1" min="0.1" step="any"/></div>
     </div>
     <div class="form-group"><label>Categoría</label><select id="mpCat"><option value="">Sin categoría</option></select></div>
     <div class="form-group"><label>Notas</label><input type="text" id="mpNotas" placeholder="Marca, urgente..."/></div>
@@ -511,6 +511,11 @@ hr { border:none; border-top:1px solid var(--border); margin:12px 0; }
       <button class="btn-logout" onclick="doLogout()">Salir</button>
     </div>
 
+    <div id="adminSection" style="display:none">
+      <div class="section-label">Administración</div>
+      <button class="btn-secondary" style="margin-top:0;border-color:var(--navy-200);color:var(--navy-700)" onclick="cerrar('modalOpciones');abrirDashboard()">👥 Panel de usuarios</button>
+    </div>
+
     <div class="section-label">Categorías</div>
     <button class="btn-secondary" style="margin-top:0" onclick="abrirGestorCategorias()">Gestionar categorías</button>
 
@@ -530,7 +535,7 @@ hr { border:none; border-top:1px solid var(--border); margin:12px 0; }
     <button class="btn-danger" onclick="eliminarMarcados()">Eliminar los que faltan</button>
 
     <button class="btn-secondary" onclick="cerrar('modalOpciones')" style="margin-top:14px">Cerrar</button>
-    <div style="text-align:center;margin-top:16px;font-size:11px;color:var(--text4);letter-spacing:.3px;">PedidOS v1.2.01</div>
+    <div style="text-align:center;margin-top:16px;font-size:11px;color:var(--text4);letter-spacing:.3px;">PedidOS v1.2.02</div>
   </div>
 </div>
 
@@ -718,8 +723,11 @@ async function iniciarApp() {
   document.getElementById('userEmail').textContent = email;
   document.getElementById('userInitial').textContent = email.charAt(0).toUpperCase();
   document.getElementById('userRoleLbl').textContent = perfil.role==='admin'?'Administrador':'Usuario';
-  // Mostrar botón admin si aplica
-  if(perfil.role==='admin') document.getElementById('btnDash').style.display='flex';
+  // Mostrar controles de admin
+  if(perfil.role==='admin'){
+    document.getElementById('btnDash').style.display='flex';
+    document.getElementById('adminSection').style.display='block';
+  }
 
   await cargarDatos();
 }
@@ -1111,83 +1119,110 @@ async function copiarTexto(){
 // CSV
 // ══════════════════════════════════════════════════════════
 function exportarCSV(){
-  const rows=[['nombre','cantidad','unidad','categoria','notas','falta']];
+  const rows=[['nombre','unidad','paso','categoria','notas','falta','cantidad']];
   productos.forEach(p=>{
     const cat=categorias.find(c=>c.id===p.categoria_id);
-    rows.push([`"${(p.nombre||'').replace(/"/g,'""')}"`,`"${(p.cantidad||'').replace(/"/g,'""')}"`,`"${(p.unidad||'').replace(/"/g,'""')}"`,`"${(cat?.nombre||'').replace(/"/g,'""')}"`,`"${(p.notas||'').replace(/"/g,'""')}"`,p.marcado?'si':'no']);
+    const csvLine = [
+      `"${(p.nombre||'').replace(/"/g,'""')}"`,
+      `"${(p.unidad||'').replace(/"/g,'""')}"`,
+      p.paso??1,
+      `"${(cat?.nombre||'').replace(/"/g,'""')}"`,
+      `"${(p.notas||'').replace(/"/g,'""')}"`,
+      p.marcado?'si':'no',
+      p.cantidad_num??0
+    ];
+    rows.push(csvLine);
   });
-  const a=Object.assign(document.createElement('a'),{href:'data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(rows.map(r=>r.join(',')).join('\n')),download:`pedidos_${new Date().toISOString().slice(0,10)}.csv`});
-  a.click();toast('CSV exportado');
+  const csv = rows.map(r=>r.join(',')).join('\n');
+  const a=Object.assign(document.createElement('a'),{
+    href:'data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv),
+    download:`pedidos_${new Date().toISOString().slice(0,10)}.csv`
+  });
+  a.click(); toast('CSV exportado');
 }
 
 async function importarCSV(evt) {
-  const file=evt.target.files[0];if(!file)return;
+  const file=evt.target.files[0]; if(!file) return;
   const reader=new FileReader();
   reader.onload=async e=>{
-    const lines=e.target.result.split('\n').filter(l=>l.trim());
-    if(lines.length<2){toast('CSV sin datos');return;}
-    const hdr=lines[0].split(',').map(h=>h.trim().toLowerCase().replace(/"/g,''));
-    const iN=hdr.indexOf('nombre'),iCa=hdr.indexOf('cantidad'),iU=hdr.indexOf('unidad'),iCt=hdr.indexOf('categoria'),iNo=hdr.indexOf('notas'),iF=hdr.indexOf('falta');
-    if(iN<0){toast('Falta columna "nombre"');return;}
+    const lines=e.target.result.split(/\r?\n/).filter(l=>l.trim());
+    if(lines.length<2){ toast('CSV sin datos'); return; }
+
+    // Parse header — strip quotes, lowercase
+    const hdr=lines[0].split(',').map(h=>h.trim().toLowerCase().replace(/^"|"$/g,''));
+    const iN  = hdr.indexOf('nombre');
+    const iU  = hdr.indexOf('unidad');
+    const iP  = hdr.indexOf('paso');
+    const iCt = hdr.indexOf('categoria');
+    const iNo = hdr.indexOf('notas');
+    const iF  = hdr.indexOf('falta');
+    const iCn = hdr.indexOf('cantidad');
+
+    if(iN<0){ toast('CSV: falta columna "nombre"'); return; }
 
     toast('Importando...');
 
-    // 1. Recargar categorías frescas desde BD para evitar desfase
-    try { categorias = await sbGet('categorias?order=orden.asc', tok()); } catch{}
+    // 1. Recargar categorías frescas
+    try{ categorias = await sbGet('categorias?order=orden.asc', tok()); }
+    catch(err){ console.error('Error recargando categorías:', err); }
 
-    // 2. Construir mapa nombre→id de categorías ya existentes
+    // 2. Mapa nombre (minúsc) → id
     const catMap = {};
-    categorias.forEach(c => { catMap[c.nombre.toLowerCase()] = c.id; });
+    categorias.forEach(c=>{ catMap[c.nombre.trim().toLowerCase()] = c.id; });
 
-    // 3. Recopilar todos los nombres de categoría únicos del CSV
-    const catNombresNuevos = new Set();
-    for(let i=1;i<lines.length;i++){
-      const cols=parseCsvLine(lines[i]);
-      const nombre=(cols[iN]||'').trim(); if(!nombre) continue;
-      const catNombre=iCt>=0?(cols[iCt]||'').trim():'';
-      if(catNombre && !catMap[catNombre.toLowerCase()]) catNombresNuevos.add(catNombre);
+    // 3. Nombres de categorías nuevas del CSV
+    const nuevasCats = new Set();
+    for(let i=1; i<lines.length; i++){
+      const cols = parseCsvLine(lines[i]);
+      if(!(cols[iN]||'').trim()) continue;
+      const cn = iCt>=0 ? (cols[iCt]||'').trim() : '';
+      if(cn && !catMap[cn.toLowerCase()]) nuevasCats.add(cn);
     }
 
-    // 4. Crear categorías nuevas UNA sola vez cada una
-    for(const catNombre of catNombresNuevos){
+    // 4. Crear categorías nuevas una por una
+    for(const cn of nuevasCats){
       try{
         const res = await sbPost('categorias', {
-          nombre: catNombre, icono:'📦', color:'#1e3a5f',
+          nombre: cn, icono:'📦', color:'#1e3a5f',
           orden: categorias.length, user_id: sesion.user.id
         }, tok());
         const cat = Array.isArray(res) ? res[0] : res;
-        if(cat && cat.id){
+        if(cat?.id){
           categorias.push(cat);
-          catMap[catNombre.toLowerCase()] = cat.id;
+          catMap[cn.toLowerCase()] = cat.id;
+        } else {
+          console.error('Categoría creada sin id:', cn, res);
         }
-      } catch(err){ console.error('Error creando categoría:', catNombre, err); }
+      } catch(err){ console.error('Error cat "'+cn+'":', err); }
     }
 
-    // 5. Importar productos usando el mapa ya completo
-    let added=0;
-    for(let i=1;i<lines.length;i++){
-      const cols=parseCsvLine(lines[i]);
-      const nombre=(cols[iN]||'').trim(); if(!nombre) continue;
-      const catNombre=iCt>=0?(cols[iCt]||'').trim():'';
-      const catId = catNombre ? (catMap[catNombre.toLowerCase()]||null) : null;
-      const marcado=iF>=0?(cols[iF]||'').trim().toLowerCase()==='si':false;
+    // 5. Insertar productos
+    let added=0, errors=0;
+    for(let i=1; i<lines.length; i++){
+      const cols   = parseCsvLine(lines[i]);
+      const nombre = (cols[iN]||'').trim(); if(!nombre) continue;
+      const cn     = iCt>=0 ? (cols[iCt]||'').trim() : '';
+      const catId  = cn ? (catMap[cn.toLowerCase()]||null) : null;
       try{
-        const res=await sbPost('productos',{
+        const res = await sbPost('productos', {
           nombre,
-          cantidad: iCa>=0?(cols[iCa]||'').trim():'',
-          unidad:   iU>=0?(cols[iU]||'').trim():'',
+          unidad:       iU>=0  ? (cols[iU]||'').trim()    : '',
+          paso:         iP>=0  ? (parseFloat(cols[iP])||1) : 1,
           categoria_id: catId,
-          notas:    iNo>=0?(cols[iNo]||'').trim():'',
-          marcado,  orden: productos.length,
-          user_id:  sesion.user.id
+          notas:        iNo>=0 ? (cols[iNo]||'').trim()   : '',
+          marcado:      iF>=0  ? (cols[iF]||'').trim().toLowerCase()==='si' : false,
+          cantidad_num: iCn>=0 ? (parseFloat(cols[iCn])||0) : 0,
+          orden:        productos.length,
+          user_id:      sesion.user.id
         }, tok());
-        productos.unshift(Array.isArray(res)?res[0]:res);
-        added++;
-      }catch(err){ console.error('Error creando producto:', nombre, err); }
+        const prod = Array.isArray(res) ? res[0] : res;
+        if(prod?.id){ productos.unshift(prod); added++; }
+        else { console.error('Producto sin id:', nombre, res); errors++; }
+      } catch(err){ console.error('Error prod "'+nombre+'":', err); errors++; }
     }
 
     poblarTabs(); poblarSelectCat(); renderLista();
-    toast(`✓ ${added} productos importados`);
+    toast(errors ? `✓ ${added} importados, ${errors} fallidos` : `✓ ${added} productos importados`);
   };
   reader.readAsText(file,'UTF-8'); evt.target.value='';
 }

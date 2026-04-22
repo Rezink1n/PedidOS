@@ -140,12 +140,13 @@ Si quieres que alguien tenga acceso de admin, actualiza su rol desde el panel de
 
 ## Versión
 
-**v1.2.01** — Abril 2026
+**v1.2.02** — Abril 2026
 
 ### Historial de cambios
 
 | Versión | Cambios |
 |---------|---------|
+| 1.2.02 | Fix CSV import/export categorías, fix Dashboard admin accesible desde ajustes, fix RLS profiles, label "Paso" más corto |
 | 1.2.01 | Popup contador +/− por producto, prefijo `N×` en lista, fix pull-to-refresh iOS, categoría auto en nuevo producto |
 | 1.2.00 | Roles admin/user, dashboard de usuarios, rediseño navy/gris, fix inputs auth, fix importación CSV |
 | 1.1.00 | Multi-usuario con auth, gestión de categorías, plantilla de mensaje, exportar/importar CSV |
