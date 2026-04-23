@@ -398,6 +398,11 @@ textarea { resize:vertical; min-height:90px; font-size:13px; line-height:1.6; }
 
 /* ── divider ── */
 hr { border:none; border-top:1px solid var(--border); margin:12px 0; }
+
+/* ── día buttons ── */
+.dia-btn { padding:6px 10px; border-radius:6px; border:1px solid var(--border); background:var(--bg3); color:var(--text3); font-size:12px; font-weight:600; font-family:'Space Grotesk',sans-serif; cursor:pointer; transition:all .15s; }
+.dia-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+.dia-btn:active { transform:scale(.9); }
   </style>
 </head>
 <body>
@@ -516,26 +521,32 @@ hr { border:none; border-top:1px solid var(--border); margin:12px 0; }
       <button class="btn-secondary" style="margin-top:0;border-color:var(--navy-200);color:var(--navy-700)" onclick="cerrar('modalOpciones');abrirDashboard()">👥 Panel de usuarios</button>
     </div>
 
+    <div class="section-label">Notificaciones</div>
+    <button class="btn-secondary" style="margin-top:0;display:flex;align-items:center;justify-content:space-between" id="btnNotif" onclick="abrirNotificaciones()">
+      <span>🔔 Recordatorios</span>
+      <span id="notifBadge" style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--bg3);color:var(--text4);border:1px solid var(--border)">—</span>
+    </button>
+
     <div class="section-label">Categorías</div>
     <button class="btn-secondary" style="margin-top:0" onclick="abrirGestorCategorias()">Gestionar categorías</button>
 
     <div class="section-label">Mensaje</div>
     <button class="btn-secondary" style="margin-top:0" onclick="abrirPlantilla()">Editar plantilla de mensaje</button>
 
-    <div class="section-label">CSV</div>
+    <div class="section-label">Exportar / Importar</div>
     <div class="csv-actions">
-      <button class="btn-csv" onclick="exportarCSV()">⬇ Exportar</button>
-      <button class="btn-csv" onclick="document.getElementById('csvInput').click()">⬆ Importar</button>
+      <button class="btn-csv" onclick="exportarJSON()">⬇ Exportar .json</button>
+      <button class="btn-csv" onclick="document.getElementById('jsonInput').click()">⬆ Importar .json</button>
     </div>
-    <input type="file" id="csvInput" accept=".csv" style="display:none" onchange="importarCSV(event)"/>
-    <p class="hint" style="margin-top:6px">Columnas: <code>nombre</code>, <code>cantidad</code>, <code>unidad</code>, <code>categoria</code>, <code>notas</code>, <code>falta</code>.</p>
+    <input type="file" id="jsonInput" accept=".json" style="display:none" onchange="importarJSON(event)"/>
+    <p class="hint" style="margin-top:6px">Exporta e importa categorías y productos completos en formato JSON.</p>
 
     <div class="section-label">Lista</div>
     <button class="btn-secondary" style="margin-top:0" onclick="desmarcarTodos()">↩ Limpiar lista (desmarcar todo)</button>
     <button class="btn-danger" onclick="eliminarMarcados()">Eliminar los que faltan</button>
 
     <button class="btn-secondary" onclick="cerrar('modalOpciones')" style="margin-top:14px">Cerrar</button>
-    <div style="text-align:center;margin-top:16px;font-size:11px;color:var(--text4);letter-spacing:.3px;">PedidOS v1.2.02</div>
+    <div style="text-align:center;margin-top:16px;font-size:11px;color:var(--text4);letter-spacing:.3px;">PedidOS v1.2.15</div>
   </div>
 </div>
 
@@ -596,7 +607,54 @@ hr { border:none; border-top:1px solid var(--border); margin:12px 0; }
   </div>
 </div>
 
-<!-- ══ Counter Popup ══ -->
+<!-- ══ Modal: Notificaciones ══ -->
+<div class="modal-overlay hidden" id="modalNotif">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>🔔 Recordatorios</h2>
+
+    <div id="notifPermStatus" style="font-size:12px;padding:8px 10px;border-radius:6px;margin-bottom:14px;background:var(--bg3);color:var(--text3);">Comprobando...</div>
+
+    <div class="form-group">
+      <label>Activar recordatorios</label>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm)">
+        <span style="font-size:13px;color:var(--text2);font-weight:500">Recordatorios activos</span>
+        <label style="position:relative;display:inline-block;width:46px;height:26px;flex-shrink:0;margin:0">
+          <input type="checkbox" id="notifEnabled" style="opacity:0;width:0;height:0;position:absolute"/>
+          <span id="toggleTrack" onclick="document.getElementById('notifEnabled').click();actualizarToggle()" style="position:absolute;inset:0;border-radius:999px;background:var(--border2);transition:background .2s;cursor:pointer">
+            <span id="toggleThumb" style="position:absolute;top:3px;left:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 4px rgba(0,0,0,.2)"></span>
+          </span>
+        </label>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Hora</label>
+      <input type="time" id="notifHora" value="08:00"/>
+    </div>
+
+    <div class="form-group">
+      <label>Días</label>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">
+        <button class="dia-btn active" data-dia="1">Lun</button>
+        <button class="dia-btn active" data-dia="2">Mar</button>
+        <button class="dia-btn active" data-dia="3">Mié</button>
+        <button class="dia-btn active" data-dia="4">Jue</button>
+        <button class="dia-btn active" data-dia="5">Vie</button>
+        <button class="dia-btn"        data-dia="6">Sáb</button>
+        <button class="dia-btn"        data-dia="7">Dom</button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Mensaje</label>
+      <input type="text" id="notifMensaje" placeholder="Revisa los pedidos de hoy ☕"/>
+    </div>
+
+    <button class="btn-primary" id="btnGuardarNotif" onclick="guardarNotificaciones()">Guardar</button>
+    <button class="btn-secondary" onclick="cerrar('modalNotif')">Cancelar</button>
+  </div>
+</div>
 <div id="cntPopup" style="display:none">
   <button class="cnt-popup-close" onclick="cerrarPopup()">✕</button>
   <div class="cnt-popup-name" id="cntPopupName"></div>
@@ -636,6 +694,22 @@ const sbPost   = (p,b,tok)  => sbFetch('POST',  `/rest/v1/${p}`,b,tok);
 const sbPatch  = (p,b,tok)  => sbFetch('PATCH', `/rest/v1/${p}`,b,tok);
 const sbDelete = (p,tok)    => sbFetch('DELETE',`/rest/v1/${p}`,null,tok);
 const tok      = ()         => sesion?.access_token;
+
+// Upsert con on_conflict — devuelve siempre el objeto, sea INSERT o UPDATE
+async function sbUpsert(table, body, conflictCol, t) {
+  const r = await fetch(`${SB_URL}/rest/v1/${table}`, {
+    method: 'POST',
+    headers: {
+      ...hdrs(t),
+      'Prefer': 'return=representation,resolution=merge-duplicates',
+    },
+    body: JSON.stringify(body)
+  });
+  const txt = await r.text();
+  if(!r.ok) throw new Error(txt);
+  const data = JSON.parse(txt);
+  return Array.isArray(data) ? data[0] : data;
+}
 
 // ══════════════════════════════════════════════════════════
 // AUTH
@@ -711,19 +785,23 @@ document.addEventListener('DOMContentLoaded', async ()=>{
 async function iniciarApp() {
   document.getElementById('authScreen').style.display='none';
   document.getElementById('appScreen').classList.add('visible');
-  // Cargar perfil
-  try {
-    const arr = await sbGet(`profiles?id=eq.${sesion.user.id}&limit=1`,tok());
-    perfil = arr?.[0] || {role:'user',email:sesion.user?.email};
-    // Actualizar last_seen
-    sbPatch(`profiles?id=eq.${sesion.user.id}`,{last_seen:new Date().toISOString()},tok()).catch(()=>{});
-  } catch{ perfil={role:'user',email:sesion.user?.email}; }
 
-  const email = perfil.email||sesion.user?.email||'';
-  document.getElementById('userEmail').textContent = email;
+  // Cargar perfil via RPC (SECURITY DEFINER — bypasa RLS recursivo)
+  try {
+    const arr = await sbFetch('POST', '/rest/v1/rpc/get_my_profile', {}, tok());
+    perfil = (Array.isArray(arr) ? arr[0] : arr) || { role:'user', email:sesion.user?.email };
+    // Actualizar last_seen en background
+    sbPatch(`profiles?id=eq.${sesion.user.id}`, { last_seen: new Date().toISOString() }, tok()).catch(()=>{});
+  } catch(e) {
+    console.error('perfil error:', e);
+    perfil = { role:'user', email: sesion.user?.email };
+  }
+
+  const email = perfil.email || sesion.user?.email || '';
+  document.getElementById('userEmail').textContent  = email;
   document.getElementById('userInitial').textContent = email.charAt(0).toUpperCase();
-  document.getElementById('userRoleLbl').textContent = perfil.role==='admin'?'Administrador':'Usuario';
-  // Mostrar controles de admin
+  document.getElementById('userRoleLbl').textContent = perfil.role==='admin' ? 'Administrador' : 'Usuario';
+
   if(perfil.role==='admin'){
     document.getElementById('btnDash').style.display='flex';
     document.getElementById('adminSection').style.display='block';
@@ -1116,132 +1194,325 @@ async function copiarTexto(){
 }
 
 // ══════════════════════════════════════════════════════════
-// CSV
+// EXPORTAR / IMPORTAR JSON — desde cero
 // ══════════════════════════════════════════════════════════
-function exportarCSV(){
-  const rows=[['nombre','unidad','paso','categoria','notas','falta','cantidad']];
-  productos.forEach(p=>{
-    const cat=categorias.find(c=>c.id===p.categoria_id);
-    const csvLine = [
-      `"${(p.nombre||'').replace(/"/g,'""')}"`,
-      `"${(p.unidad||'').replace(/"/g,'""')}"`,
-      p.paso??1,
-      `"${(cat?.nombre||'').replace(/"/g,'""')}"`,
-      `"${(p.notas||'').replace(/"/g,'""')}"`,
-      p.marcado?'si':'no',
-      p.cantidad_num??0
-    ];
-    rows.push(csvLine);
-  });
-  const csv = rows.map(r=>r.join(',')).join('\n');
-  const a=Object.assign(document.createElement('a'),{
-    href:'data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv),
-    download:`pedidos_${new Date().toISOString().slice(0,10)}.csv`
-  });
-  a.click(); toast('CSV exportado');
-}
 
-async function importarCSV(evt) {
-  const file=evt.target.files[0]; if(!file) return;
-  const reader=new FileReader();
-  reader.onload=async e=>{
-    const lines=e.target.result.split(/\r?\n/).filter(l=>l.trim());
-    if(lines.length<2){ toast('CSV sin datos'); return; }
-
-    // Parse header — strip quotes, lowercase
-    const hdr=lines[0].split(',').map(h=>h.trim().toLowerCase().replace(/^"|"$/g,''));
-    const iN  = hdr.indexOf('nombre');
-    const iU  = hdr.indexOf('unidad');
-    const iP  = hdr.indexOf('paso');
-    const iCt = hdr.indexOf('categoria');
-    const iNo = hdr.indexOf('notas');
-    const iF  = hdr.indexOf('falta');
-    const iCn = hdr.indexOf('cantidad');
-
-    if(iN<0){ toast('CSV: falta columna "nombre"'); return; }
-
-    toast('Importando...');
-
-    // 1. Recargar categorías frescas
-    try{ categorias = await sbGet('categorias?order=orden.asc', tok()); }
-    catch(err){ console.error('Error recargando categorías:', err); }
-
-    // 2. Mapa nombre (minúsc) → id
-    const catMap = {};
-    categorias.forEach(c=>{ catMap[c.nombre.trim().toLowerCase()] = c.id; });
-
-    // 3. Nombres de categorías nuevas del CSV
-    const nuevasCats = new Set();
-    for(let i=1; i<lines.length; i++){
-      const cols = parseCsvLine(lines[i]);
-      if(!(cols[iN]||'').trim()) continue;
-      const cn = iCt>=0 ? (cols[iCt]||'').trim() : '';
-      if(cn && !catMap[cn.toLowerCase()]) nuevasCats.add(cn);
-    }
-
-    // 4. Crear categorías nuevas una por una
-    for(const cn of nuevasCats){
-      try{
-        const res = await sbPost('categorias', {
-          nombre: cn, icono:'📦', color:'#1e3a5f',
-          orden: categorias.length, user_id: sesion.user.id
-        }, tok());
-        const cat = Array.isArray(res) ? res[0] : res;
-        if(cat?.id){
-          categorias.push(cat);
-          catMap[cn.toLowerCase()] = cat.id;
-        } else {
-          console.error('Categoría creada sin id:', cn, res);
-        }
-      } catch(err){ console.error('Error cat "'+cn+'":', err); }
-    }
-
-    // 5. Insertar productos
-    let added=0, errors=0;
-    for(let i=1; i<lines.length; i++){
-      const cols   = parseCsvLine(lines[i]);
-      const nombre = (cols[iN]||'').trim(); if(!nombre) continue;
-      const cn     = iCt>=0 ? (cols[iCt]||'').trim() : '';
-      const catId  = cn ? (catMap[cn.toLowerCase()]||null) : null;
-      try{
-        const res = await sbPost('productos', {
-          nombre,
-          unidad:       iU>=0  ? (cols[iU]||'').trim()    : '',
-          paso:         iP>=0  ? (parseFloat(cols[iP])||1) : 1,
-          categoria_id: catId,
-          notas:        iNo>=0 ? (cols[iNo]||'').trim()   : '',
-          marcado:      iF>=0  ? (cols[iF]||'').trim().toLowerCase()==='si' : false,
-          cantidad_num: iCn>=0 ? (parseFloat(cols[iCn])||0) : 0,
-          orden:        productos.length,
-          user_id:      sesion.user.id
-        }, tok());
-        const prod = Array.isArray(res) ? res[0] : res;
-        if(prod?.id){ productos.unshift(prod); added++; }
-        else { console.error('Producto sin id:', nombre, res); errors++; }
-      } catch(err){ console.error('Error prod "'+nombre+'":', err); errors++; }
-    }
-
-    poblarTabs(); poblarSelectCat(); renderLista();
-    toast(errors ? `✓ ${added} importados, ${errors} fallidos` : `✓ ${added} productos importados`);
+function exportarJSON() {
+  // Construir estructura: categorías + productos con nombre de categoría
+  const data = {
+    version:    '1.0',
+    exportado:  new Date().toISOString(),
+    categorias: categorias.map(c => ({
+      nombre: c.nombre,
+      icono:  c.icono  || '📦',
+      color:  c.color  || '#1e3a5f',
+      orden:  c.orden  ?? 0
+    })),
+    productos: productos.map(p => {
+      const cat = categorias.find(c => c.id === p.categoria_id);
+      return {
+        nombre:      p.nombre,
+        unidad:      p.unidad      || '',
+        paso:        p.paso        ?? 1,
+        categoria:   cat?.nombre   || '',
+        notas:       p.notas       || '',
+        marcado:     p.marcado     || false,
+        cantidad_num:p.cantidad_num ?? 0,
+        orden:       p.orden       ?? 0
+      };
+    })
   };
-  reader.readAsText(file,'UTF-8'); evt.target.value='';
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement('a'), {
+    href:     url,
+    download: `pedidos_${new Date().toISOString().slice(0,10)}.json`
+  });
+  a.click();
+  URL.revokeObjectURL(url);
+  toast(`⬇ Exportado: ${data.categorias.length} categorías, ${data.productos.length} productos`);
 }
 
-function parseCsvLine(line){
-  const res=[];let cur='',inQ=false;
-  for(let i=0;i<line.length;i++){
-    const ch=line[i];
-    if(ch==='"'){if(inQ&&line[i+1]==='"'){cur+='"';i++;}else inQ=!inQ;}
-    else if(ch===','&&!inQ){res.push(cur);cur='';}
-    else cur+=ch;
+async function importarJSON(evt) {
+  const file = evt.target.files[0];
+  if (!file) return;
+  evt.target.value = '';
+
+  let data;
+  try {
+    const txt = await file.text();
+    data = JSON.parse(txt);
+  } catch {
+    toast('❌ Archivo JSON inválido'); return;
   }
-  res.push(cur);return res;
+
+  if (!data.productos && !data.categorias) {
+    toast('❌ Formato incorrecto'); return;
+  }
+
+  toast('Importando...');
+
+  // ── Paso 1: Recargar categorías actuales de la BD ──────────
+  try { categorias = await sbGet('categorias?order=orden.asc', tok()); } catch {}
+
+  const norm   = s => (s||'').trim().toLowerCase();
+  const catMap = {};                          // nombre_norm → id
+  categorias.forEach(c => { catMap[norm(c.nombre)] = c.id; });
+
+  // ── Paso 2: Importar categorías del JSON ──────────────────
+  let catCreadas = 0;
+  for (const c of (data.categorias || [])) {
+    const nombre = (c.nombre||'').trim();
+    if (!nombre) continue;
+    const key = norm(nombre);
+
+    if (catMap[key]) continue; // ya existe en este usuario
+
+    try {
+      const res = await fetch(`${SB_URL}/rest/v1/categorias`, {
+        method:  'POST',
+        headers: { ...hdrs(tok()), 'Prefer': 'return=representation' },
+        body:    JSON.stringify({
+          nombre,
+          icono:   c.icono  || '📦',
+          color:   c.color  || '#1e3a5f',
+          orden:   c.orden  ?? categorias.length,
+          user_id: sesion.user.id
+        })
+      });
+      const txt2 = await res.text();
+
+      if (res.ok) {
+        const arr = JSON.parse(txt2);
+        const cat = Array.isArray(arr) ? arr[0] : arr;
+        if (cat?.id) {
+          categorias.push(cat);
+          catMap[key] = cat.id;
+          catCreadas++;
+        }
+      } else {
+        // Conflicto — ya existía con ese nombre para este user_id, buscarla
+        const found = await sbGet(
+          `categorias?nombre=eq.${encodeURIComponent(nombre)}&user_id=eq.${sesion.user.id}&limit=1`,
+          tok()
+        );
+        if (found?.[0]?.id) {
+          catMap[key] = found[0].id;
+          if (!categorias.find(x => x.id === found[0].id)) categorias.push(found[0]);
+        } else {
+          console.error('Cat no creada ni encontrada:', nombre, res.status, txt2);
+        }
+      }
+    } catch (err) { console.error('Cat error:', nombre, err); }
+  }
+
+  // ── Paso 3: Importar productos ────────────────────────────
+  let prodCreados = 0, prodErrores = 0;
+  const prods = data.productos || [];
+
+  for (const p of prods) {
+    const nombre = (p.nombre||'').trim();
+    if (!nombre) continue;
+
+    const catNombre = (p.categoria||'').trim();
+    const catId     = catNombre ? (catMap[norm(catNombre)] || null) : null;
+
+    if (catNombre && !catId) {
+      console.warn('Categoría no resuelta:', catNombre, 'para producto:', nombre);
+    }
+
+    try {
+      const res = await fetch(`${SB_URL}/rest/v1/productos`, {
+        method:  'POST',
+        headers: { ...hdrs(tok()), 'Prefer': 'return=representation' },
+        body:    JSON.stringify({
+          nombre,
+          unidad:       p.unidad      || '',
+          paso:         p.paso        ?? 1,
+          categoria_id: catId,
+          notas:        p.notas       || '',
+          marcado:      p.marcado     || false,
+          cantidad_num: p.cantidad_num ?? 0,
+          orden:        p.orden       ?? productos.length,
+          user_id:      sesion.user.id
+        })
+      });
+      const txt3 = await res.text();
+      if (res.ok) {
+        const arr = JSON.parse(txt3);
+        const prod = Array.isArray(arr) ? arr[0] : arr;
+        if (prod?.id) { productos.unshift(prod); prodCreados++; }
+        else { console.error('Prod sin id:', nombre, txt3); prodErrores++; }
+      } else {
+        console.error('Prod HTTP error:', nombre, res.status, txt3);
+        prodErrores++;
+      }
+    } catch (err) { console.error('Prod error:', nombre, err); prodErrores++; }
+  }
+
+  poblarTabs(); poblarSelectCat(); renderLista();
+
+  const msg = prodErrores > 0
+    ? `✓ ${catCreadas} categorías, ${prodCreados} productos importados (${prodErrores} fallidos)`
+    : `✓ ${catCreadas} categorías y ${prodCreados} productos importados`;
+  toast(msg);
 }
 
 // ══════════════════════════════════════════════════════════
-// OPCIONES
+// NOTIFICACIONES PUSH — servidor real
 // ══════════════════════════════════════════════════════════
-const abrirOpciones=()=>abrir('modalOpciones');
+const VAPID_PUBLIC = 'BIw5vcJjVcFa-bBiVyK3pgB_i3RQQz_Uv2alMLNdJIw8wyFcraULuj02RiIcNiYwGVnKvEfaXXMKn6E1gLSU0hM';
+
+function b64urlToUint8(b64) {
+  const s = b64.replace(/-/g,'+').replace(/_/g,'/');
+  const raw = atob(s + '==='.slice((s.length+3)%4));
+  return Uint8Array.from(raw, c => c.charCodeAt(0));
+}
+
+function actualizarBadgeNotif(enabled, hora) {
+  const badge = document.getElementById('notifBadge');
+  if (!badge) return;
+  if (enabled && hora) {
+    badge.textContent = `✅ ${hora}`;
+    badge.style.cssText = 'font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border)';
+  } else {
+    badge.textContent = 'Off';
+    badge.style.cssText = 'font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--bg3);color:var(--text4);border:1px solid var(--border)';
+  }
+}
+
+function actualizarToggle() {
+  const checked = document.getElementById('notifEnabled').checked;
+  const track   = document.getElementById('toggleTrack');
+  const thumb   = document.getElementById('toggleThumb');
+  if (!track || !thumb) return;
+  track.style.background = checked ? 'var(--accent)' : 'var(--border2)';
+  thumb.style.transform  = checked ? 'translateX(20px)' : 'translateX(0)';
+}
+
+async function abrirNotificaciones() {
+  cerrar('modalOpciones');
+
+  // Cargar config guardada en BD
+  try {
+    const arr = await sbGet('notification_schedules?limit=1', tok());
+    if (arr?.length) {
+      const s = arr[0];
+      document.getElementById('notifEnabled').checked = s.enabled;
+      document.getElementById('notifHora').value      = s.hora || '08:00';
+      document.getElementById('notifMensaje').value   = s.mensaje || '';
+      document.querySelectorAll('.dia-btn').forEach(b =>
+        b.classList.toggle('active', (s.dias||[]).includes(Number(b.dataset.dia)))
+      );
+      actualizarBadgeNotif(s.enabled, s.hora);
+      actualizarToggle();
+    }
+  } catch(e) { console.error('load schedule:', e); }
+
+  actualizarEstadoPermiso();
+  abrir('modalNotif');
+}
+
+function actualizarEstadoPermiso() {
+  const el = document.getElementById('notifPermStatus');
+  if (!('Notification' in window)) {
+    el.textContent = '⚠️ Notificaciones no soportadas en este navegador.';
+    el.style.cssText = 'background:#fef2f2;color:var(--red);font-size:12px;padding:8px 10px;border-radius:6px;margin-bottom:14px';
+    return;
+  }
+  const p = Notification.permission;
+  if (p === 'granted') {
+    el.textContent = '✅ Permisos concedidos — recibirás el push aunque la app esté cerrada.';
+    el.style.cssText = 'background:var(--green-bg);color:var(--green);font-size:12px;padding:8px 10px;border-radius:6px;margin-bottom:14px';
+  } else if (p === 'denied') {
+    el.textContent = '🚫 Bloqueadas. Ve a Ajustes del sistema → Notificaciones → PedidOS y actívalas.';
+    el.style.cssText = 'background:#fef2f2;color:var(--red);font-size:12px;padding:8px 10px;border-radius:6px;margin-bottom:14px';
+  } else {
+    el.textContent = '💡 Toca "Guardar" para que el sistema pida permiso de notificaciones.';
+    el.style.cssText = 'background:var(--amber-bg);color:var(--amber);font-size:12px;padding:8px 10px;border-radius:6px;margin-bottom:14px';
+  }
+}
+
+document.addEventListener('click', e => {
+  if (e.target.classList.contains('dia-btn')) e.target.classList.toggle('active');
+});
+
+async function guardarNotificaciones() {
+  const enabled = document.getElementById('notifEnabled').checked;
+  const hora    = document.getElementById('notifHora').value || '08:00';
+  const mensaje = document.getElementById('notifMensaje').value.trim() || 'Revisa los pedidos de hoy ☕';
+  const dias    = [...document.querySelectorAll('.dia-btn.active')].map(b => Number(b.dataset.dia));
+
+  if (enabled && dias.length === 0) { toast('Selecciona al menos un día'); return; }
+
+  const btn = document.getElementById('btnGuardarNotif');
+  btn.textContent = 'Guardando...'; btn.disabled = true;
+
+  try {
+    // 1. Pedir permiso si hace falta
+    if (enabled && Notification.permission !== 'granted') {
+      const p = await Notification.requestPermission();
+      actualizarEstadoPermiso();
+      if (p !== 'granted') { toast('Permiso denegado'); btn.textContent='Guardar'; btn.disabled=false; return; }
+    }
+
+    // 2. Suscribir este dispositivo al push (si está activando)
+    if (enabled) await suscribirDispositivo();
+
+    // 3. Guardar horario en Supabase
+    const data = {
+      enabled, hora, dias, mensaje,
+      user_id:  sesion.user.id,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Madrid',
+      updated_at: new Date().toISOString()
+    };
+    const existing = await sbGet('notification_schedules?limit=1', tok());
+    if (existing?.length) await sbPatch(`notification_schedules?user_id=eq.${sesion.user.id}`, data, tok());
+    else                  await sbPost('notification_schedules', data, tok());
+
+    cerrar('modalNotif');
+    actualizarBadgeNotif(enabled, hora);
+    toast(enabled ? `🔔 Recordatorio guardado para las ${hora}` : 'Recordatorios desactivados');
+  } catch(e) {
+    toast('Error: ' + e.message);
+    console.error(e);
+  } finally {
+    btn.textContent = 'Guardar'; btn.disabled = false;
+  }
+}
+
+async function suscribirDispositivo() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    throw new Error('Push no soportado en este navegador/dispositivo');
+  }
+  const reg = await navigator.serviceWorker.ready;
+  let sub   = await reg.pushManager.getSubscription();
+  if (!sub) {
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly:      true,
+      applicationServerKey: b64urlToUint8(VAPID_PUBLIC)
+    });
+  }
+  const j = sub.toJSON();
+  // Guardar/actualizar suscripción en BD
+  const payload = {
+    user_id:  sesion.user.id,
+    endpoint: j.endpoint,
+    p256dh:   j.keys.p256dh,
+    auth_key: j.keys.auth
+  };
+  try { await sbPost('push_subscriptions', payload, tok()); }
+  catch { /* ya existe el endpoint — está bien */ }
+}
+const abrirOpciones = async () => {
+  abrir('modalOpciones');
+  // Refrescar badge de notificaciones
+  try {
+    const arr = await sbGet('notification_schedules?limit=1', tok());
+    if (arr?.length) actualizarBadgeNotif(arr[0].enabled, arr[0].hora);
+  } catch {}
+};
 async function desmarcarTodos(){
   if(!confirm('¿Limpiar la lista? Se desmarcan todos y se resetean las cantidades.'))return;
   cerrar('modalOpciones');
@@ -1299,12 +1570,23 @@ const fmtDate=d=>{try{return new Date(d).toLocaleDateString('es-ES',{day:'numeri
 const abrir  = id=>document.getElementById(id).classList.remove('hidden');
 const cerrar = id=>document.getElementById(id).classList.add('hidden');
 
+document.getElementById('notifEnabled').addEventListener('change', actualizarToggle);
 document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)cerrar(o.id);}));
 document.getElementById('mpNombre').addEventListener('keydown',e=>{if(e.key==='Enter')guardarProducto();});
 
 function toast(msg){
   const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'),2400);
+}
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+  // Debug: mostrar toast si el SW recibe un push
+  navigator.serviceWorker.addEventListener('message', e => {
+    if (e.data?.type === 'PUSH_RECEIVED') {
+      toast(`📩 Push recibido: ${e.data.body}`);
+    }
+  });
 }
 
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));}
