@@ -546,7 +546,7 @@ hr { border:none; border-top:1px solid var(--border); margin:12px 0; }
     <button class="btn-danger" onclick="eliminarMarcados()">Eliminar los que faltan</button>
 
     <button class="btn-secondary" onclick="cerrar('modalOpciones')" style="margin-top:14px">Cerrar</button>
-    <div style="text-align:center;margin-top:16px;font-size:11px;color:var(--text4);letter-spacing:.3px;">PedidOS v1.2.14</div>
+    <div style="text-align:center;margin-top:16px;font-size:11px;color:var(--text4);letter-spacing:.3px;">PedidOS v1.2.15</div>
   </div>
 </div>
 
@@ -1563,7 +1563,15 @@ function toast(msg){
   setTimeout(()=>t.classList.remove('show'),2400);
 }
 
-if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));}
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+  // Debug: mostrar toast si el SW recibe un push
+  navigator.serviceWorker.addEventListener('message', e => {
+    if (e.data?.type === 'PUSH_RECEIVED') {
+      toast(`📩 Push recibido: ${e.data.body}`);
+    }
+  });
+}
 </script>
 </body>
 </html>
