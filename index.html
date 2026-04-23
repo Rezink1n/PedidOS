@@ -543,7 +543,7 @@ hr { border:none; border-top:1px solid var(--border); margin:12px 0; }
     <button class="btn-danger" onclick="eliminarMarcados()">Eliminar los que faltan</button>
 
     <button class="btn-secondary" onclick="cerrar('modalOpciones')" style="margin-top:14px">Cerrar</button>
-    <div style="text-align:center;margin-top:16px;font-size:11px;color:var(--text4);letter-spacing:.3px;">PedidOS v1.2.02</div>
+    <div style="text-align:center;margin-top:16px;font-size:11px;color:var(--text4);letter-spacing:.3px;">PedidOS v1.2.13</div>
   </div>
 </div>
 
@@ -1260,16 +1260,19 @@ async function importarJSON(evt) {
     const nombre = (c.nombre||'').trim();
     if (!nombre) continue;
     const key = norm(nombre);
-    if (catMap[key]) continue;               // ya existe
+
+    if (catMap[key]) continue; // ya existe en este usuario
 
     try {
-      // INSERT directo, si ya existe lo buscamos después
       const res = await fetch(`${SB_URL}/rest/v1/categorias`, {
         method:  'POST',
         headers: { ...hdrs(tok()), 'Prefer': 'return=representation' },
         body:    JSON.stringify({
-          nombre, icono: c.icono||'📦', color: c.color||'#1e3a5f',
-          orden: c.orden ?? categorias.length, user_id: sesion.user.id
+          nombre,
+          icono:   c.icono  || '📦',
+          color:   c.color  || '#1e3a5f',
+          orden:   c.orden  ?? categorias.length,
+          user_id: sesion.user.id
         })
       });
       const txt2 = await res.text();
@@ -1282,15 +1285,18 @@ async function importarJSON(evt) {
           catMap[key] = cat.id;
           catCreadas++;
         }
-      } else if (res.status === 409 || txt2.includes('duplicate') || txt2.includes('unique')) {
-        // Ya existía — buscarla
-        const found = await sbGet(`categorias?nombre=eq.${encodeURIComponent(nombre)}&user_id=eq.${sesion.user.id}&limit=1`, tok());
+      } else {
+        // Conflicto — ya existía con ese nombre para este user_id, buscarla
+        const found = await sbGet(
+          `categorias?nombre=eq.${encodeURIComponent(nombre)}&user_id=eq.${sesion.user.id}&limit=1`,
+          tok()
+        );
         if (found?.[0]?.id) {
           catMap[key] = found[0].id;
           if (!categorias.find(x => x.id === found[0].id)) categorias.push(found[0]);
+        } else {
+          console.error('Cat no creada ni encontrada:', nombre, res.status, txt2);
         }
-      } else {
-        console.error('Error cat:', nombre, txt2);
       }
     } catch (err) { console.error('Cat error:', nombre, err); }
   }
