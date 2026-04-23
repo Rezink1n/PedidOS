@@ -522,7 +522,10 @@ hr { border:none; border-top:1px solid var(--border); margin:12px 0; }
     </div>
 
     <div class="section-label">Notificaciones</div>
-    <button class="btn-secondary" style="margin-top:0" id="btnNotif" onclick="abrirNotificaciones()">🔔 Configurar recordatorios</button>
+    <button class="btn-secondary" style="margin-top:0;display:flex;align-items:center;justify-content:space-between" id="btnNotif" onclick="abrirNotificaciones()">
+      <span>🔔 Recordatorios</span>
+      <span id="notifBadge" style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--bg3);color:var(--text4);border:1px solid var(--border)">—</span>
+    </button>
 
     <div class="section-label">Categorías</div>
     <button class="btn-secondary" style="margin-top:0" onclick="abrirGestorCategorias()">Gestionar categorías</button>
@@ -543,7 +546,7 @@ hr { border:none; border-top:1px solid var(--border); margin:12px 0; }
     <button class="btn-danger" onclick="eliminarMarcados()">Eliminar los que faltan</button>
 
     <button class="btn-secondary" onclick="cerrar('modalOpciones')" style="margin-top:14px">Cerrar</button>
-    <div style="text-align:center;margin-top:16px;font-size:11px;color:var(--text4);letter-spacing:.3px;">PedidOS v1.2.13</div>
+    <div style="text-align:center;margin-top:16px;font-size:11px;color:var(--text4);letter-spacing:.3px;">PedidOS v1.2.14</div>
   </div>
 </div>
 
@@ -643,9 +646,7 @@ hr { border:none; border-top:1px solid var(--border); margin:12px 0; }
       <input type="text" id="notifMensaje" placeholder="Revisa los pedidos de hoy ☕"/>
     </div>
 
-    <p class="hint" style="margin-top:4px;margin-bottom:10px">⚠️ La app debe estar instalada y abierta al menos una vez al día para que funcionen los recordatorios locales.</p>
-
-    <button class="btn-primary" onclick="guardarNotificaciones()">Guardar</button>
+    <button class="btn-primary" id="btnGuardarNotif" onclick="guardarNotificaciones()">Guardar</button>
     <button class="btn-secondary" onclick="cerrar('modalNotif')">Cancelar</button>
   </div>
 </div>
@@ -1354,106 +1355,70 @@ async function importarJSON(evt) {
 }
 
 // ══════════════════════════════════════════════════════════
-// NOTIFICACIONES LOCALES — desde cero, sin servidor
+// NOTIFICACIONES PUSH — servidor real
 // ══════════════════════════════════════════════════════════
-// Config guardada en localStorage. El SW usa setTimeout al cargarse.
-const NOTIF_KEY = 'pedidos_notif_config';
+const VAPID_PUBLIC = 'c11ndNUcVUZJta3zOpMfP6RJf8A0pkLXiGQVRBrXOWSJK32bfblrQOZ4Xb8YSQGVMkST3EzsjD5apuDhApywXg';
 
-let _notifTimer = null;
-
-function notifConfig() {
-  try { return JSON.parse(localStorage.getItem(NOTIF_KEY)) || {}; } catch { return {}; }
+function b64urlToUint8(b64) {
+  const s = b64.replace(/-/g,'+').replace(/_/g,'/');
+  const raw = atob(s + '==='.slice((s.length+3)%4));
+  return Uint8Array.from(raw, c => c.charCodeAt(0));
 }
 
-function notifGuardarLocal(cfg) {
-  try { localStorage.setItem(NOTIF_KEY, JSON.stringify(cfg)); } catch {}
-}
-
-// Programar el siguiente disparo basándose en config local
-function programarNotificacionLocal() {
-  if (_notifTimer) { clearTimeout(_notifTimer); _notifTimer = null; }
-
-  const cfg = notifConfig();
-  if (!cfg.enabled || !cfg.hora) return;
-
-  const [h, m]   = cfg.hora.split(':').map(Number);
-  const dias      = cfg.dias || [1,2,3,4,5];
-  const ahora     = new Date();
-  const hoy       = ahora.getDay(); // 0=Dom
-
-  // Calcular próximo disparo
-  function proximoDisparo() {
-    for (let d = 0; d <= 7; d++) {
-      const candidato = new Date(ahora);
-      candidato.setDate(ahora.getDate() + d);
-      candidato.setHours(h, m, 0, 0);
-      if (candidato <= ahora) continue;                    // ya pasó
-      if (!dias.includes(candidato.getDay())) continue;   // día no activo
-      return candidato;
-    }
-    return null;
+function actualizarBadgeNotif(enabled, hora) {
+  const badge = document.getElementById('notifBadge');
+  if (!badge) return;
+  if (enabled && hora) {
+    badge.textContent = `✅ ${hora}`;
+    badge.style.cssText = 'font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border)';
+  } else {
+    badge.textContent = 'Off';
+    badge.style.cssText = 'font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--bg3);color:var(--text4);border:1px solid var(--border)';
   }
-
-  const proximo = proximoDisparo();
-  if (!proximo) return;
-
-  const ms = proximo - ahora;
-  console.log(`🔔 Próximo recordatorio en ${Math.round(ms/60000)} minutos (${proximo.toLocaleTimeString()})`);
-
-  _notifTimer = setTimeout(async () => {
-    // Mostrar notificación
-    if (Notification.permission === 'granted') {
-      const msg = notifConfig().mensaje || 'Revisa los pedidos de hoy ☕';
-      if ('serviceWorker' in navigator) {
-        const reg = await navigator.serviceWorker.ready;
-        reg.showNotification('PedidOS ☕', {
-          body:  msg,
-          icon:  './icon-192.png',
-          tag:   'pedidos-reminder',
-          renotify: true
-        });
-      } else {
-        new Notification('PedidOS ☕', { body: msg, icon: './icon-192.png' });
-      }
-    }
-    // Re-programar para el día siguiente
-    setTimeout(programarNotificacionLocal, 60000);
-  }, ms);
 }
 
-function abrirNotificaciones() {
+async function abrirNotificaciones() {
   cerrar('modalOpciones');
 
-  // Cargar config guardada
-  const cfg = notifConfig();
-  document.getElementById('notifEnabled').checked = cfg.enabled || false;
-  document.getElementById('notifHora').value       = cfg.hora    || '08:00';
-  document.getElementById('notifMensaje').value    = cfg.mensaje || '';
-  const dias = cfg.dias || [1,2,3,4,5];
-  document.querySelectorAll('.dia-btn').forEach(b => {
-    b.classList.toggle('active', dias.includes(Number(b.dataset.dia)));
-  });
+  // Cargar config guardada en BD
+  try {
+    const arr = await sbGet('notification_schedules?limit=1', tok());
+    if (arr?.length) {
+      const s = arr[0];
+      document.getElementById('notifEnabled').checked = s.enabled;
+      document.getElementById('notifHora').value      = s.hora || '08:00';
+      document.getElementById('notifMensaje').value   = s.mensaje || '';
+      document.querySelectorAll('.dia-btn').forEach(b =>
+        b.classList.toggle('active', (s.dias||[]).includes(Number(b.dataset.dia)))
+      );
+      actualizarBadgeNotif(s.enabled, s.hora);
+    }
+  } catch(e) { console.error('load schedule:', e); }
 
-  // Estado permisos
-  const el = document.getElementById('notifPermStatus');
-  if (!('Notification' in window)) {
-    el.textContent = '⚠️ Notificaciones no soportadas en este navegador.';
-    el.style.cssText = 'background:#fef2f2;color:var(--red)';
-  } else if (Notification.permission === 'granted') {
-    el.textContent = '✅ Permisos concedidos en este dispositivo.';
-    el.style.cssText = 'background:var(--green-bg);color:var(--green)';
-  } else if (Notification.permission === 'denied') {
-    el.textContent = '🚫 Bloqueadas. Actívalas en Ajustes del sistema.';
-    el.style.cssText = 'background:#fef2f2;color:var(--red)';
-  } else {
-    el.textContent = '💡 Toca "Guardar" para activar el permiso.';
-    el.style.cssText = 'background:var(--amber-bg);color:var(--amber)';
-  }
-
+  actualizarEstadoPermiso();
   abrir('modalNotif');
 }
 
-// Toggle días — listener global
+function actualizarEstadoPermiso() {
+  const el = document.getElementById('notifPermStatus');
+  if (!('Notification' in window)) {
+    el.textContent = '⚠️ Notificaciones no soportadas en este navegador.';
+    el.style.cssText = 'background:#fef2f2;color:var(--red);font-size:12px;padding:8px 10px;border-radius:6px;margin-bottom:14px';
+    return;
+  }
+  const p = Notification.permission;
+  if (p === 'granted') {
+    el.textContent = '✅ Permisos concedidos — recibirás el push aunque la app esté cerrada.';
+    el.style.cssText = 'background:var(--green-bg);color:var(--green);font-size:12px;padding:8px 10px;border-radius:6px;margin-bottom:14px';
+  } else if (p === 'denied') {
+    el.textContent = '🚫 Bloqueadas. Ve a Ajustes del sistema → Notificaciones → PedidOS y actívalas.';
+    el.style.cssText = 'background:#fef2f2;color:var(--red);font-size:12px;padding:8px 10px;border-radius:6px;margin-bottom:14px';
+  } else {
+    el.textContent = '💡 Toca "Guardar" para que el sistema pida permiso de notificaciones.';
+    el.style.cssText = 'background:var(--amber-bg);color:var(--amber);font-size:12px;padding:8px 10px;border-radius:6px;margin-bottom:14px';
+  }
+}
+
 document.addEventListener('click', e => {
   if (e.target.classList.contains('dia-btn')) e.target.classList.toggle('active');
 });
@@ -1466,25 +1431,73 @@ async function guardarNotificaciones() {
 
   if (enabled && dias.length === 0) { toast('Selecciona al menos un día'); return; }
 
-  // Pedir permiso si hace falta
-  if (enabled && Notification.permission !== 'granted') {
-    const p = await Notification.requestPermission();
-    if (p !== 'granted') { toast('Permiso denegado — actívalo en Ajustes'); return; }
+  const btn = document.getElementById('btnGuardarNotif');
+  btn.textContent = 'Guardando...'; btn.disabled = true;
+
+  try {
+    // 1. Pedir permiso si hace falta
+    if (enabled && Notification.permission !== 'granted') {
+      const p = await Notification.requestPermission();
+      actualizarEstadoPermiso();
+      if (p !== 'granted') { toast('Permiso denegado'); btn.textContent='Guardar'; btn.disabled=false; return; }
+    }
+
+    // 2. Suscribir este dispositivo al push (si está activando)
+    if (enabled) await suscribirDispositivo();
+
+    // 3. Guardar horario en Supabase
+    const data = {
+      enabled, hora, dias, mensaje,
+      user_id:  sesion.user.id,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Madrid',
+      updated_at: new Date().toISOString()
+    };
+    const existing = await sbGet('notification_schedules?limit=1', tok());
+    if (existing?.length) await sbPatch(`notification_schedules?user_id=eq.${sesion.user.id}`, data, tok());
+    else                  await sbPost('notification_schedules', data, tok());
+
+    cerrar('modalNotif');
+    actualizarBadgeNotif(enabled, hora);
+    toast(enabled ? `🔔 Recordatorio guardado para las ${hora}` : 'Recordatorios desactivados');
+  } catch(e) {
+    toast('Error: ' + e.message);
+    console.error(e);
+  } finally {
+    btn.textContent = 'Guardar'; btn.disabled = false;
   }
-
-  // Guardar en localStorage
-  notifGuardarLocal({ enabled, hora, dias, mensaje });
-
-  // Re-programar
-  programarNotificacionLocal();
-
-  cerrar('modalNotif');
-  toast(enabled ? `🔔 Recordatorio a las ${hora}` : 'Recordatorios desactivados');
 }
 
-// Arrancar al cargar la app
-programarNotificacionLocal();
-const abrirOpciones=()=>abrir('modalOpciones');
+async function suscribirDispositivo() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    throw new Error('Push no soportado en este navegador/dispositivo');
+  }
+  const reg = await navigator.serviceWorker.ready;
+  let sub   = await reg.pushManager.getSubscription();
+  if (!sub) {
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly:      true,
+      applicationServerKey: b64urlToUint8(VAPID_PUBLIC)
+    });
+  }
+  const j = sub.toJSON();
+  // Guardar/actualizar suscripción en BD
+  const payload = {
+    user_id:  sesion.user.id,
+    endpoint: j.endpoint,
+    p256dh:   j.keys.p256dh,
+    auth_key: j.keys.auth
+  };
+  try { await sbPost('push_subscriptions', payload, tok()); }
+  catch { /* ya existe el endpoint — está bien */ }
+}
+const abrirOpciones = async () => {
+  abrir('modalOpciones');
+  // Refrescar badge de notificaciones
+  try {
+    const arr = await sbGet('notification_schedules?limit=1', tok());
+    if (arr?.length) actualizarBadgeNotif(arr[0].enabled, arr[0].hora);
+  } catch {}
+};
 async function desmarcarTodos(){
   if(!confirm('¿Limpiar la lista? Se desmarcan todos y se resetean las cantidades.'))return;
   cerrar('modalOpciones');

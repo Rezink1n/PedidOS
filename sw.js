@@ -26,12 +26,28 @@ self.addEventListener('fetch', e => {
   );
 });
 
-// Mostrar notificación local (disparada desde el JS principal via showNotification)
+// Recibir push del servidor y mostrarlo
+self.addEventListener('push', e => {
+  let data = { title: 'PedidOS ☕', body: 'Revisa los pedidos de hoy', icon: './icon-192.png' };
+  try { Object.assign(data, e.data.json()); } catch {}
+  e.waitUntil(
+    self.registration.showNotification(data.title, {
+      body:     data.body,
+      icon:     data.icon,
+      badge:    './icon-192.png',
+      tag:      'pedidos-reminder',
+      renotify: true,
+      vibrate:  [200, 100, 200]
+    })
+  );
+});
+
+// Al tocar la notificación → abrir la app
 self.addEventListener('notificationclick', e => {
   e.notification.close();
   e.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(cls => {
-      const w = cls.find(c => c.focused || c.url.includes(self.location.origin));
+      const w = cls.find(c => c.url.includes(self.location.origin));
       return w ? w.focus() : clients.openWindow('./');
     })
   );
