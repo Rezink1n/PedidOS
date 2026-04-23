@@ -530,13 +530,13 @@ hr { border:none; border-top:1px solid var(--border); margin:12px 0; }
     <div class="section-label">Mensaje</div>
     <button class="btn-secondary" style="margin-top:0" onclick="abrirPlantilla()">Editar plantilla de mensaje</button>
 
-    <div class="section-label">CSV</div>
+    <div class="section-label">Exportar / Importar</div>
     <div class="csv-actions">
-      <button class="btn-csv" onclick="exportarCSV()">⬇ Exportar</button>
-      <button class="btn-csv" onclick="document.getElementById('csvInput').click()">⬆ Importar</button>
+      <button class="btn-csv" onclick="exportarJSON()">⬇ Exportar .json</button>
+      <button class="btn-csv" onclick="document.getElementById('jsonInput').click()">⬆ Importar .json</button>
     </div>
-    <input type="file" id="csvInput" accept=".csv" style="display:none" onchange="importarCSV(event)"/>
-    <p class="hint" style="margin-top:6px">Columnas: <code>nombre</code>, <code>cantidad</code>, <code>unidad</code>, <code>categoria</code>, <code>notas</code>, <code>falta</code>.</p>
+    <input type="file" id="jsonInput" accept=".json" style="display:none" onchange="importarJSON(event)"/>
+    <p class="hint" style="margin-top:6px">Exporta e importa categorías y productos completos en formato JSON.</p>
 
     <div class="section-label">Lista</div>
     <button class="btn-secondary" style="margin-top:0" onclick="desmarcarTodos()">↩ Limpiar lista (desmarcar todo)</button>
@@ -610,40 +610,42 @@ hr { border:none; border-top:1px solid var(--border); margin:12px 0; }
     <div class="modal-handle"></div>
     <h2>🔔 Recordatorios</h2>
 
-    <div id="notifPermStatus" style="font-size:12px;padding:8px 10px;border-radius:6px;margin-bottom:14px;background:var(--bg3);color:var(--text3);">Comprobando permisos...</div>
+    <div id="notifPermStatus" style="font-size:12px;padding:8px 10px;border-radius:6px;margin-bottom:14px;background:var(--bg3);color:var(--text3);">Comprobando...</div>
 
     <div class="form-group">
       <label>Activar recordatorios</label>
       <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
         <input type="checkbox" id="notifEnabled" style="width:18px;height:18px;accent-color:var(--accent);flex-shrink:0"/>
-        <span style="font-size:13px;color:var(--text2)">Recibir notificación a la hora programada</span>
+        <span style="font-size:13px;color:var(--text2)">Recibir aviso a la hora programada</span>
       </div>
     </div>
 
     <div class="form-group">
-      <label>Hora del recordatorio</label>
+      <label>Hora</label>
       <input type="time" id="notifHora" value="08:00"/>
     </div>
 
     <div class="form-group">
-      <label>Días de la semana</label>
-      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px" id="diasBtns">
+      <label>Días</label>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">
         <button class="dia-btn active" data-dia="1">Lun</button>
         <button class="dia-btn active" data-dia="2">Mar</button>
         <button class="dia-btn active" data-dia="3">Mié</button>
         <button class="dia-btn active" data-dia="4">Jue</button>
         <button class="dia-btn active" data-dia="5">Vie</button>
-        <button class="dia-btn" data-dia="6">Sáb</button>
-        <button class="dia-btn" data-dia="7">Dom</button>
+        <button class="dia-btn"        data-dia="6">Sáb</button>
+        <button class="dia-btn"        data-dia="0">Dom</button>
       </div>
     </div>
 
     <div class="form-group">
       <label>Mensaje</label>
-      <input type="text" id="notifMensaje" placeholder="Recuerda revisar los pedidos ☕"/>
+      <input type="text" id="notifMensaje" placeholder="Revisa los pedidos de hoy ☕"/>
     </div>
 
-    <button class="btn-primary" onclick="guardarNotificaciones()">Guardar recordatorio</button>
+    <p class="hint" style="margin-top:4px;margin-bottom:10px">⚠️ La app debe estar instalada y abierta al menos una vez al día para que funcionen los recordatorios locales.</p>
+
+    <button class="btn-primary" onclick="guardarNotificaciones()">Guardar</button>
     <button class="btn-secondary" onclick="cerrar('modalNotif')">Cancelar</button>
   </div>
 </div>
@@ -1186,152 +1188,296 @@ async function copiarTexto(){
 }
 
 // ══════════════════════════════════════════════════════════
-// CSV
+// EXPORTAR / IMPORTAR JSON — desde cero
 // ══════════════════════════════════════════════════════════
-function exportarCSV(){
-  const rows=[['nombre','unidad','paso','categoria','notas','falta','cantidad']];
-  productos.forEach(p=>{
-    const cat=categorias.find(c=>c.id===p.categoria_id);
-    const csvLine = [
-      `"${(p.nombre||'').replace(/"/g,'""')}"`,
-      `"${(p.unidad||'').replace(/"/g,'""')}"`,
-      p.paso??1,
-      `"${(cat?.nombre||'').replace(/"/g,'""')}"`,
-      `"${(p.notas||'').replace(/"/g,'""')}"`,
-      p.marcado?'si':'no',
-      p.cantidad_num??0
-    ];
-    rows.push(csvLine);
+
+function exportarJSON() {
+  // Construir estructura: categorías + productos con nombre de categoría
+  const data = {
+    version:    '1.0',
+    exportado:  new Date().toISOString(),
+    categorias: categorias.map(c => ({
+      nombre: c.nombre,
+      icono:  c.icono  || '📦',
+      color:  c.color  || '#1e3a5f',
+      orden:  c.orden  ?? 0
+    })),
+    productos: productos.map(p => {
+      const cat = categorias.find(c => c.id === p.categoria_id);
+      return {
+        nombre:      p.nombre,
+        unidad:      p.unidad      || '',
+        paso:        p.paso        ?? 1,
+        categoria:   cat?.nombre   || '',
+        notas:       p.notas       || '',
+        marcado:     p.marcado     || false,
+        cantidad_num:p.cantidad_num ?? 0,
+        orden:       p.orden       ?? 0
+      };
+    })
+  };
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement('a'), {
+    href:     url,
+    download: `pedidos_${new Date().toISOString().slice(0,10)}.json`
   });
-  const csv = rows.map(r=>r.join(',')).join('\n');
-  const a=Object.assign(document.createElement('a'),{
-    href:'data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv),
-    download:`pedidos_${new Date().toISOString().slice(0,10)}.csv`
-  });
-  a.click(); toast('CSV exportado');
+  a.click();
+  URL.revokeObjectURL(url);
+  toast(`⬇ Exportado: ${data.categorias.length} categorías, ${data.productos.length} productos`);
 }
 
-async function importarCSV(evt) {
-  const file=evt.target.files[0]; if(!file) return;
-  const reader=new FileReader();
-  reader.onload=async e=>{
-    const lines=e.target.result.split(/\r?\n/).filter(l=>l.trim());
-    if(lines.length<2){ toast('CSV sin datos'); return; }
+async function importarJSON(evt) {
+  const file = evt.target.files[0];
+  if (!file) return;
+  evt.target.value = '';
 
-    // Parse header — strip quotes, lowercase
-    const hdr=lines[0].split(',').map(h=>h.trim().toLowerCase().replace(/^"|"$/g,''));
-    const iN  = hdr.indexOf('nombre');
-    const iU  = hdr.indexOf('unidad');
-    const iP  = hdr.indexOf('paso');
-    const iCt = hdr.indexOf('categoria');
-    const iNo = hdr.indexOf('notas');
-    const iF  = hdr.indexOf('falta');
-    const iCn = hdr.indexOf('cantidad');
+  let data;
+  try {
+    const txt = await file.text();
+    data = JSON.parse(txt);
+  } catch {
+    toast('❌ Archivo JSON inválido'); return;
+  }
 
-    if(iN<0){ toast('CSV: falta columna "nombre"'); return; }
-    toast('Importando...');
+  if (!data.productos && !data.categorias) {
+    toast('❌ Formato incorrecto'); return;
+  }
 
-    // 1. Recargar categorías frescas
-    try{ categorias = await sbGet('categorias?order=orden.asc', tok()); }
-    catch(err){ console.error('Error recargando categorías:', err); }
+  toast('Importando...');
 
-    // 2. Mapa nombre→id (normalizado: sin espacios extra, minúsculas)
-    const normalize = s => s.trim().toLowerCase();
-    const catMap = {};
-    categorias.forEach(c => { catMap[normalize(c.nombre)] = c.id; });
+  // ── Paso 1: Recargar categorías actuales de la BD ──────────
+  try { categorias = await sbGet('categorias?order=orden.asc', tok()); } catch {}
 
-    // 3. Recoger nombres únicos de categorías del CSV
-    const catNombres = new Set();
-    for(let i=1; i<lines.length; i++){
-      const cols = parseCsvLine(lines[i]);
-      if(!(cols[iN]||'').trim()) continue;
-      const cn = iCt>=0 ? (cols[iCt]||'').trim() : '';
-      if(cn) catNombres.add(cn);
-    }
+  const norm   = s => (s||'').trim().toLowerCase();
+  const catMap = {};                          // nombre_norm → id
+  categorias.forEach(c => { catMap[norm(c.nombre)] = c.id; });
 
-    // 4. Upsert cada categoría — merge-duplicates garantiza que siempre devuelve el objeto con id
-    for(const cn of catNombres){
-      const key = normalize(cn);
-      if(catMap[key]) continue; // ya existe, no hace falta
-      try{
-        const cat = await sbUpsert('categorias', {
-          nombre:  cn,
-          icono:   '📦',
-          color:   '#1e3a5f',
-          orden:   categorias.length,
-          user_id: sesion.user.id
-        }, 'user_id,nombre', tok());
+  // ── Paso 2: Importar categorías del JSON ──────────────────
+  let catCreadas = 0;
+  for (const c of (data.categorias || [])) {
+    const nombre = (c.nombre||'').trim();
+    if (!nombre) continue;
+    const key = norm(nombre);
+    if (catMap[key]) continue;               // ya existe
 
-        if(cat?.id){
+    try {
+      // INSERT directo, si ya existe lo buscamos después
+      const res = await fetch(`${SB_URL}/rest/v1/categorias`, {
+        method:  'POST',
+        headers: { ...hdrs(tok()), 'Prefer': 'return=representation' },
+        body:    JSON.stringify({
+          nombre, icono: c.icono||'📦', color: c.color||'#1e3a5f',
+          orden: c.orden ?? categorias.length, user_id: sesion.user.id
+        })
+      });
+      const txt2 = await res.text();
+
+      if (res.ok) {
+        const arr = JSON.parse(txt2);
+        const cat = Array.isArray(arr) ? arr[0] : arr;
+        if (cat?.id) {
           categorias.push(cat);
           catMap[key] = cat.id;
-          console.log('✓ Categoría:', cn, cat.id);
-        } else {
-          // Fallback: buscar en BD por si ya existía
-          const found = await sbGet(`categorias?nombre=eq.${encodeURIComponent(cn)}&limit=1`, tok());
-          if(found?.[0]?.id){
-            catMap[key] = found[0].id;
-            if(!categorias.find(c=>c.id===found[0].id)) categorias.push(found[0]);
-          }
+          catCreadas++;
         }
-      } catch(err){
-        console.error('Error cat "'+cn+'":', err);
-        // Intentar recuperar si ya existía
-        try{
-          const found = await sbGet(`categorias?nombre=eq.${encodeURIComponent(cn)}&limit=1`, tok());
-          if(found?.[0]?.id){ catMap[key]=found[0].id; }
-        } catch{}
+      } else if (res.status === 409 || txt2.includes('duplicate') || txt2.includes('unique')) {
+        // Ya existía — buscarla
+        const found = await sbGet(`categorias?nombre=eq.${encodeURIComponent(nombre)}&user_id=eq.${sesion.user.id}&limit=1`, tok());
+        if (found?.[0]?.id) {
+          catMap[key] = found[0].id;
+          if (!categorias.find(x => x.id === found[0].id)) categorias.push(found[0]);
+        }
+      } else {
+        console.error('Error cat:', nombre, txt2);
+      }
+    } catch (err) { console.error('Cat error:', nombre, err); }
+  }
+
+  // ── Paso 3: Importar productos ────────────────────────────
+  let prodCreados = 0, prodErrores = 0;
+  const prods = data.productos || [];
+
+  for (const p of prods) {
+    const nombre = (p.nombre||'').trim();
+    if (!nombre) continue;
+
+    const catNombre = (p.categoria||'').trim();
+    const catId     = catNombre ? (catMap[norm(catNombre)] || null) : null;
+
+    if (catNombre && !catId) {
+      console.warn('Categoría no resuelta:', catNombre, 'para producto:', nombre);
+    }
+
+    try {
+      const res = await fetch(`${SB_URL}/rest/v1/productos`, {
+        method:  'POST',
+        headers: { ...hdrs(tok()), 'Prefer': 'return=representation' },
+        body:    JSON.stringify({
+          nombre,
+          unidad:       p.unidad      || '',
+          paso:         p.paso        ?? 1,
+          categoria_id: catId,
+          notas:        p.notas       || '',
+          marcado:      p.marcado     || false,
+          cantidad_num: p.cantidad_num ?? 0,
+          orden:        p.orden       ?? productos.length,
+          user_id:      sesion.user.id
+        })
+      });
+      const txt3 = await res.text();
+      if (res.ok) {
+        const arr = JSON.parse(txt3);
+        const prod = Array.isArray(arr) ? arr[0] : arr;
+        if (prod?.id) { productos.unshift(prod); prodCreados++; }
+        else { console.error('Prod sin id:', nombre, txt3); prodErrores++; }
+      } else {
+        console.error('Prod HTTP error:', nombre, res.status, txt3);
+        prodErrores++;
+      }
+    } catch (err) { console.error('Prod error:', nombre, err); prodErrores++; }
+  }
+
+  poblarTabs(); poblarSelectCat(); renderLista();
+
+  const msg = prodErrores > 0
+    ? `✓ ${catCreadas} categorías, ${prodCreados} productos importados (${prodErrores} fallidos)`
+    : `✓ ${catCreadas} categorías y ${prodCreados} productos importados`;
+  toast(msg);
+}
+
+// ══════════════════════════════════════════════════════════
+// NOTIFICACIONES LOCALES — desde cero, sin servidor
+// ══════════════════════════════════════════════════════════
+// Config guardada en localStorage. El SW usa setTimeout al cargarse.
+const NOTIF_KEY = 'pedidos_notif_config';
+
+let _notifTimer = null;
+
+function notifConfig() {
+  try { return JSON.parse(localStorage.getItem(NOTIF_KEY)) || {}; } catch { return {}; }
+}
+
+function notifGuardarLocal(cfg) {
+  try { localStorage.setItem(NOTIF_KEY, JSON.stringify(cfg)); } catch {}
+}
+
+// Programar el siguiente disparo basándose en config local
+function programarNotificacionLocal() {
+  if (_notifTimer) { clearTimeout(_notifTimer); _notifTimer = null; }
+
+  const cfg = notifConfig();
+  if (!cfg.enabled || !cfg.hora) return;
+
+  const [h, m]   = cfg.hora.split(':').map(Number);
+  const dias      = cfg.dias || [1,2,3,4,5];
+  const ahora     = new Date();
+  const hoy       = ahora.getDay(); // 0=Dom
+
+  // Calcular próximo disparo
+  function proximoDisparo() {
+    for (let d = 0; d <= 7; d++) {
+      const candidato = new Date(ahora);
+      candidato.setDate(ahora.getDate() + d);
+      candidato.setHours(h, m, 0, 0);
+      if (candidato <= ahora) continue;                    // ya pasó
+      if (!dias.includes(candidato.getDay())) continue;   // día no activo
+      return candidato;
+    }
+    return null;
+  }
+
+  const proximo = proximoDisparo();
+  if (!proximo) return;
+
+  const ms = proximo - ahora;
+  console.log(`🔔 Próximo recordatorio en ${Math.round(ms/60000)} minutos (${proximo.toLocaleTimeString()})`);
+
+  _notifTimer = setTimeout(async () => {
+    // Mostrar notificación
+    if (Notification.permission === 'granted') {
+      const msg = notifConfig().mensaje || 'Revisa los pedidos de hoy ☕';
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.ready;
+        reg.showNotification('PedidOS ☕', {
+          body:  msg,
+          icon:  './icon-192.png',
+          tag:   'pedidos-reminder',
+          renotify: true
+        });
+      } else {
+        new Notification('PedidOS ☕', { body: msg, icon: './icon-192.png' });
       }
     }
-
-    // 5. Insertar productos
-    let added=0, errors=0;
-    for(let i=1; i<lines.length; i++){
-      const cols   = parseCsvLine(lines[i]);
-      const nombre = (cols[iN]||'').trim(); if(!nombre) continue;
-      const cn     = iCt>=0 ? (cols[iCt]||'').trim() : '';
-      const catId  = cn ? (catMap[normalize(cn)] || null) : null;
-
-      if(cn && !catId) console.warn('Categoría no resuelta para producto:', nombre, '→', cn);
-
-      try{
-        const res = await sbPost('productos', {
-          nombre,
-          unidad:       iU>=0  ? (cols[iU]||'').trim()             : '',
-          paso:         iP>=0  ? (parseFloat(cols[iP])||1)          : 1,
-          categoria_id: catId,
-          notas:        iNo>=0 ? (cols[iNo]||'').trim()             : '',
-          marcado:      iF>=0  ? (cols[iF]||'').trim().toLowerCase()==='si' : false,
-          cantidad_num: iCn>=0 ? (parseFloat(cols[iCn])||0)         : 0,
-          orden:        productos.length,
-          user_id:      sesion.user.id
-        }, tok());
-        const prod = Array.isArray(res) ? res[0] : res;
-        if(prod?.id){ productos.unshift(prod); added++; }
-        else { console.error('Producto sin id:', nombre, res); errors++; }
-      } catch(err){ console.error('Error prod "'+nombre+'":', err); errors++; }
-    }
-
-    poblarTabs(); poblarSelectCat(); renderLista();
-    toast(errors>0 ? `✓ ${added} importados, ${errors} fallidos` : `✓ ${added} productos importados`);
-  };
-  reader.readAsText(file,'UTF-8'); evt.target.value='';
+    // Re-programar para el día siguiente
+    setTimeout(programarNotificacionLocal, 60000);
+  }, ms);
 }
 
-function parseCsvLine(line){
-  const res=[];let cur='',inQ=false;
-  for(let i=0;i<line.length;i++){
-    const ch=line[i];
-    if(ch==='"'){if(inQ&&line[i+1]==='"'){cur+='"';i++;}else inQ=!inQ;}
-    else if(ch===','&&!inQ){res.push(cur);cur='';}
-    else cur+=ch;
+function abrirNotificaciones() {
+  cerrar('modalOpciones');
+
+  // Cargar config guardada
+  const cfg = notifConfig();
+  document.getElementById('notifEnabled').checked = cfg.enabled || false;
+  document.getElementById('notifHora').value       = cfg.hora    || '08:00';
+  document.getElementById('notifMensaje').value    = cfg.mensaje || '';
+  const dias = cfg.dias || [1,2,3,4,5];
+  document.querySelectorAll('.dia-btn').forEach(b => {
+    b.classList.toggle('active', dias.includes(Number(b.dataset.dia)));
+  });
+
+  // Estado permisos
+  const el = document.getElementById('notifPermStatus');
+  if (!('Notification' in window)) {
+    el.textContent = '⚠️ Notificaciones no soportadas en este navegador.';
+    el.style.cssText = 'background:#fef2f2;color:var(--red)';
+  } else if (Notification.permission === 'granted') {
+    el.textContent = '✅ Permisos concedidos en este dispositivo.';
+    el.style.cssText = 'background:var(--green-bg);color:var(--green)';
+  } else if (Notification.permission === 'denied') {
+    el.textContent = '🚫 Bloqueadas. Actívalas en Ajustes del sistema.';
+    el.style.cssText = 'background:#fef2f2;color:var(--red)';
+  } else {
+    el.textContent = '💡 Toca "Guardar" para activar el permiso.';
+    el.style.cssText = 'background:var(--amber-bg);color:var(--amber)';
   }
-  res.push(cur);return res;
+
+  abrir('modalNotif');
 }
 
-// ══════════════════════════════════════════════════════════
-// OPCIONES
-// ══════════════════════════════════════════════════════════
+// Toggle días — listener global
+document.addEventListener('click', e => {
+  if (e.target.classList.contains('dia-btn')) e.target.classList.toggle('active');
+});
+
+async function guardarNotificaciones() {
+  const enabled = document.getElementById('notifEnabled').checked;
+  const hora    = document.getElementById('notifHora').value || '08:00';
+  const mensaje = document.getElementById('notifMensaje').value.trim() || 'Revisa los pedidos de hoy ☕';
+  const dias    = [...document.querySelectorAll('.dia-btn.active')].map(b => Number(b.dataset.dia));
+
+  if (enabled && dias.length === 0) { toast('Selecciona al menos un día'); return; }
+
+  // Pedir permiso si hace falta
+  if (enabled && Notification.permission !== 'granted') {
+    const p = await Notification.requestPermission();
+    if (p !== 'granted') { toast('Permiso denegado — actívalo en Ajustes'); return; }
+  }
+
+  // Guardar en localStorage
+  notifGuardarLocal({ enabled, hora, dias, mensaje });
+
+  // Re-programar
+  programarNotificacionLocal();
+
+  cerrar('modalNotif');
+  toast(enabled ? `🔔 Recordatorio a las ${hora}` : 'Recordatorios desactivados');
+}
+
+// Arrancar al cargar la app
+programarNotificacionLocal();
 const abrirOpciones=()=>abrir('modalOpciones');
 async function desmarcarTodos(){
   if(!confirm('¿Limpiar la lista? Se desmarcan todos y se resetean las cantidades.'))return;
@@ -1399,124 +1545,6 @@ function toast(msg){
 }
 
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));}
-
-// ══════════════════════════════════════════════════════════
-// NOTIFICACIONES PUSH
-// ══════════════════════════════════════════════════════════
-const VAPID_PUBLIC = 'c11ndNUcVUZJta3zOpMfP6RJf8A0pkLXiGQVRBrXOWSJK32bfblrQOZ4Xb8YSQGVMkST3EzsjD5apuDhApywXg';
-
-function b64urlToUint8(b64) {
-  const b = (b64 + '==='.slice((b64.length + 3) % 4)).replace(/-/g,'+').replace(/_/g,'/');
-  return Uint8Array.from(atob(b), c => c.charCodeAt(0));
-}
-
-async function abrirNotificaciones() {
-  cerrar('modalOpciones');
-  abrir('modalNotif');
-
-  // Cargar config guardada
-  try {
-    const arr = await sbGet('notification_schedules?limit=1', tok());
-    if (arr?.length) {
-      const s = arr[0];
-      document.getElementById('notifEnabled').checked  = s.enabled;
-      document.getElementById('notifHora').value       = s.hora || '08:00';
-      document.getElementById('notifMensaje').value    = s.mensaje || '';
-      // Marcar días
-      document.querySelectorAll('.dia-btn').forEach(b => {
-        b.classList.toggle('active', (s.dias||[]).includes(Number(b.dataset.dia)));
-      });
-    }
-  } catch(e) { console.error(e); }
-
-  // Estado permisos
-  actualizarEstadoPermiso();
-}
-
-function actualizarEstadoPermiso() {
-  const el = document.getElementById('notifPermStatus');
-  if (!('Notification' in window)) {
-    el.textContent = '⚠️ Este navegador no soporta notificaciones.';
-    el.style.background = '#fef2f2'; el.style.color = 'var(--red)';
-    return;
-  }
-  const p = Notification.permission;
-  if (p === 'granted') {
-    el.textContent = '✅ Notificaciones activadas en este dispositivo.';
-    el.style.background = 'var(--green-bg)'; el.style.color = 'var(--green)';
-  } else if (p === 'denied') {
-    el.textContent = '🚫 Notificaciones bloqueadas. Actívalas en Ajustes del navegador.';
-    el.style.background = '#fef2f2'; el.style.color = 'var(--red)';
-  } else {
-    el.textContent = '💡 Toca "Guardar" para activar los permisos de notificación.';
-    el.style.background = 'var(--amber-bg)'; el.style.color = 'var(--amber)';
-  }
-}
-
-// Toggle días
-document.addEventListener('click', e => {
-  if (e.target.classList.contains('dia-btn')) {
-    e.target.classList.toggle('active');
-  }
-});
-
-async function guardarNotificaciones() {
-  const enabled = document.getElementById('notifEnabled').checked;
-  const hora    = document.getElementById('notifHora').value || '08:00';
-  const mensaje = document.getElementById('notifMensaje').value.trim() || 'Recuerda revisar los pedidos ☕';
-  const dias    = [...document.querySelectorAll('.dia-btn.active')].map(b => Number(b.dataset.dia));
-
-  if (dias.length === 0 && enabled) { toast('Selecciona al menos un día'); return; }
-
-  // Pedir permiso si no está concedido
-  if (enabled && Notification.permission !== 'granted') {
-    const perm = await Notification.requestPermission();
-    actualizarEstadoPermiso();
-    if (perm !== 'granted') { toast('Permiso denegado'); return; }
-  }
-
-  // Suscribir este dispositivo al push
-  if (enabled) {
-    try { await suscribirPush(); } catch(e) { console.error('Push sub error:', e); }
-  }
-
-  // Guardar configuración en Supabase
-  try {
-    const data = { enabled, hora, dias, mensaje, user_id: sesion.user.id, updated_at: new Date().toISOString(), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Madrid' };
-    const existing = await sbGet('notification_schedules?limit=1', tok());
-    if (existing?.length) await sbPatch('notification_schedules?user_id=eq.'+sesion.user.id, data, tok());
-    else await sbPost('notification_schedules', data, tok());
-    cerrar('modalNotif');
-    toast(enabled ? '🔔 Recordatorio guardado' : 'Notificaciones desactivadas');
-  } catch(e) { toast('Error al guardar: '+e.message); }
-}
-
-async function suscribirPush() {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) throw new Error('Push no soportado');
-  const reg = await navigator.serviceWorker.ready;
-  // Comprobar si ya existe suscripción
-  let sub = await reg.pushManager.getSubscription();
-  if (!sub) {
-    sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: b64urlToUint8(VAPID_PUBLIC)
-    });
-  }
-  const j = sub.toJSON();
-  // Guardar en BD
-  const payload = {
-    user_id:  sesion.user.id,
-    endpoint: j.endpoint,
-    p256dh:   j.keys.p256dh,
-    auth_key: j.keys.auth
-  };
-  // Upsert (si ya existe el endpoint, actualiza)
-  try {
-    await sbPost('push_subscriptions', payload, tok());
-  } catch {
-    // Puede fallar por UNIQUE constraint si ya existe — está bien
-  }
-}
 </script>
 </body>
 </html>
