@@ -617,9 +617,14 @@ hr { border:none; border-top:1px solid var(--border); margin:12px 0; }
 
     <div class="form-group">
       <label>Activar recordatorios</label>
-      <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
-        <input type="checkbox" id="notifEnabled" style="width:18px;height:18px;accent-color:var(--accent);flex-shrink:0"/>
-        <span style="font-size:13px;color:var(--text2)">Recibir aviso a la hora programada</span>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm)">
+        <span style="font-size:13px;color:var(--text2);font-weight:500">Recordatorios activos</span>
+        <label style="position:relative;display:inline-block;width:46px;height:26px;flex-shrink:0;margin:0">
+          <input type="checkbox" id="notifEnabled" style="opacity:0;width:0;height:0;position:absolute"/>
+          <span id="toggleTrack" onclick="document.getElementById('notifEnabled').click();actualizarToggle()" style="position:absolute;inset:0;border-radius:999px;background:var(--border2);transition:background .2s;cursor:pointer">
+            <span id="toggleThumb" style="position:absolute;top:3px;left:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 4px rgba(0,0,0,.2)"></span>
+          </span>
+        </label>
       </div>
     </div>
 
@@ -1377,6 +1382,15 @@ function actualizarBadgeNotif(enabled, hora) {
   }
 }
 
+function actualizarToggle() {
+  const checked = document.getElementById('notifEnabled').checked;
+  const track   = document.getElementById('toggleTrack');
+  const thumb   = document.getElementById('toggleThumb');
+  if (!track || !thumb) return;
+  track.style.background = checked ? 'var(--accent)' : 'var(--border2)';
+  thumb.style.transform  = checked ? 'translateX(20px)' : 'translateX(0)';
+}
+
 async function abrirNotificaciones() {
   cerrar('modalOpciones');
 
@@ -1392,6 +1406,7 @@ async function abrirNotificaciones() {
         b.classList.toggle('active', (s.dias||[]).includes(Number(b.dataset.dia)))
       );
       actualizarBadgeNotif(s.enabled, s.hora);
+      actualizarToggle();
     }
   } catch(e) { console.error('load schedule:', e); }
 
@@ -1555,6 +1570,7 @@ const fmtDate=d=>{try{return new Date(d).toLocaleDateString('es-ES',{day:'numeri
 const abrir  = id=>document.getElementById(id).classList.remove('hidden');
 const cerrar = id=>document.getElementById(id).classList.add('hidden');
 
+document.getElementById('notifEnabled').addEventListener('change', actualizarToggle);
 document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)cerrar(o.id);}));
 document.getElementById('mpNombre').addEventListener('keydown',e=>{if(e.key==='Enter')guardarProducto();});
 
